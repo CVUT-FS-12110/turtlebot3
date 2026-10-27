@@ -42,6 +42,8 @@ Finish the first-run setup: create a Linux user (lowercase, no diacritics) and a
 
 ## 3. Install ROS 2 Jazzy
 
+> Steps 3–5 can be done automatically with [`scripts/install.sh`](../scripts/install.sh) (role `pc`). The manual steps are below.
+
 ```bash
 sudo apt install -y software-properties-common curl
 sudo add-apt-repository -y universe
