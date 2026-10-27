@@ -1,0 +1,7 @@
+# Copy to C:\Users\<user>\.wslconfig, then run `wsl --shutdown`.
+# Mirrored networking gives WSL the same IP as Windows and enables
+# multicast, which ROS 2 (DDS) needs to discover the robot.
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
