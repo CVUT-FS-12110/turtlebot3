@@ -120,13 +120,20 @@ if [[ $IS_WSL -eq 1 && $WS_DIR == /mnt/* ]]; then
   warn "Workspaces under /mnt are very slow in WSL; a Linux path like ~/turtlebot3_ws is recommended."
 fi
 
-DO_SWAP=0; DO_NO_AUTOUPGRADE=0; DO_OPENCR=0; LDS_MODEL=""
+USE_CYCLONE=0
+confirm "Use CycloneDDS (rmw_cyclonedds_cpp, recommended by ROBOTIS; set it on PC and robot alike)?" y && USE_CYCLONE=1
+
+DO_SWAP=0; DO_NO_AUTOUPGRADE=0; DO_OPENCR=0; DO_WIFI_PS=0; LDS_MODEL=""
+WLAN_IF=$(ls /sys/class/net 2>/dev/null | grep -m1 '^wl' || true)
 if [[ $ROLE == robot ]]; then
   choose LDS_MODEL "LiDAR model" LDS-01 LDS-01 LDS-02 LDS-03
   if [[ $MEM_MB -lt 2048 && ! -f /swapfile ]]; then
     confirm "Less than 2 GB RAM: create a 2 GB swap file (needed for the build)?" y && DO_SWAP=1
   fi
   confirm "Disable automatic apt upgrades (they block apt and use memory on a Pi)?" y && DO_NO_AUTOUPGRADE=1
+  if [[ -n $WLAN_IF ]]; then
+    confirm "Disable Wi-Fi power saving on $WLAN_IF (avoids lag and dropped topics)?" y && DO_WIFI_PS=1
+  fi
   confirm "Flash the OpenCR firmware now (OpenCR must be connected over USB)?" n && DO_OPENCR=1
 fi
 
@@ -139,8 +146,10 @@ info "Role:            $ROLE"
 info "Model:           $TB3_MODEL"
 info "ROS_DOMAIN_ID:   $DOMAIN_ID"
 info "Workspace:       $WS_DIR"
+info "RMW:             $([[ $USE_CYCLONE -eq 1 ]] && echo rmw_cyclonedds_cpp || echo "ROS default")"
 if [[ $ROLE == robot ]]; then
   info "LiDAR:           $LDS_MODEL"
+  info "Wi-Fi powersave: $([[ $DO_WIFI_PS -eq 1 ]] && echo "off ($WLAN_IF)" || echo unchanged)"
   info "Swap file:       $([[ $DO_SWAP -eq 1 ]] && echo yes || echo no)"
   info "No auto-upgrade: $([[ $DO_NO_AUTOUPGRADE -eq 1 ]] && echo yes || echo no)"
   info "Flash OpenCR:    $([[ $DO_OPENCR -eq 1 ]] && echo yes || echo no)"
@@ -160,6 +169,13 @@ if [[ $DO_SWAP -eq 1 ]]; then
   step "Creating a 2 GB swap file"
   run "sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
   run "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab"
+fi
+
+if [[ $DO_WIFI_PS -eq 1 ]]; then
+  step "Disabling Wi-Fi power saving on $WLAN_IF (persistent systemd unit)"
+  run "sudo apt-get install -y iw"
+  run "printf '%s\n' '[Unit]' 'Description=Disable Wi-Fi power saving' 'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/sbin/iw dev $WLAN_IF set power_save off' '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/wifi-powersave-off.service >/dev/null"
+  run "sudo systemctl daemon-reload && sudo systemctl enable --now wifi-powersave-off.service"
 fi
 
 # --- ROS 2 apt repository ---------------------------------------------------
@@ -186,6 +202,10 @@ else
   run "sudo apt-get install -y git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
     ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev"
+fi
+
+if [[ $USE_CYCLONE -eq 1 ]]; then
+  run "sudo apt-get install -y ros-$ROS_DISTRO_NAME-rmw-cyclonedds-cpp"
 fi
 
 # --- Workspace --------------------------------------------------------------
@@ -256,6 +276,8 @@ export ROS_DOMAIN_ID=$DOMAIN_ID
 export TURTLEBOT3_MODEL=$TB3_MODEL"
 [[ -n $LDS_MODEL ]] && ENV_BLOCK+="
 export LDS_MODEL=$LDS_MODEL"
+[[ $USE_CYCLONE -eq 1 ]] && ENV_BLOCK+="
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
 ENV_BLOCK+="
 $END_MARK"
 
@@ -282,3 +304,4 @@ else
   info "  ros2 launch turtlebot3_bringup robot.launch.py"
   info "Log out and back in once so the dialout group membership applies."
 fi
+info "Check the setup any time with: $(dirname "$(readlink -f "$0")")/check.sh [other-host-ip]"

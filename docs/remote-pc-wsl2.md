@@ -82,14 +82,18 @@ colcon build --symlink-install
 ## 5. Environment
 
 ```bash
+sudo apt install -y ros-jazzy-rmw-cyclonedds-cpp
 cat >> ~/.bashrc << 'EOF'
 source /opt/ros/jazzy/setup.bash
 source ~/turtlebot3_ws/install/setup.bash
 export ROS_DOMAIN_ID=30
 export TURTLEBOT3_MODEL=burger
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 EOF
 source ~/.bashrc
 ```
+
+The robot must use the same `ROS_DOMAIN_ID` and `RMW_IMPLEMENTATION`.
 
 ## 6. Test in simulation
 
@@ -115,4 +119,4 @@ ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True map:
 ## Troubleshooting
 
 - **Gazebo crashes or shows a black window:** try `export LIBGL_ALWAYS_SOFTWARE=1`. If that helps, the problem is the GPU driver.
-- **PC does not see the robot's topics:** check that both use the same `ROS_DOMAIN_ID` and Wi-Fi network. Guest and corporate Wi-Fi networks often block multicast.
+- **PC does not see the robot's topics:** see [troubleshooting.md](troubleshooting.md#the-pc-does-not-see-the-robots-topics) (domain ID, RMW, multicast).
