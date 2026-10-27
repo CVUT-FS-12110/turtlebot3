@@ -23,7 +23,8 @@ Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Bu
 | Step | Guide | Status |
 |---|---|---|
 | Remote PC (WSL2) + simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) | ✅ working |
-| Raspberry Pi, OpenCR firmware, bring-up | – | ⏳ not done yet |
+| OpenCR firmware (sources, features) | [docs/opencr-firmware.md](docs/opencr-firmware.md) | 📖 overview only |
+| Raspberry Pi, OpenCR flashing, bring-up | – | ⏳ not done yet |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
 ## Quick install
@@ -51,4 +52,5 @@ export TURTLEBOT3_MODEL=burger
 ## References
 
 - [ROBOTIS TurtleBot3 e-Manual](https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/)
+- [OpenCR source code (ROBOTIS-GIT/OpenCR)](https://github.com/ROBOTIS-GIT/OpenCR), [OpenCR 1.0 e-Manual](https://emanual.robotis.com/docs/en/parts/controller/opencr10/)
 - [ROS 2 Jazzy documentation](https://docs.ros.org/en/jazzy/)
