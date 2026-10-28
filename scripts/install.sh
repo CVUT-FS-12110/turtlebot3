@@ -241,7 +241,7 @@ fi
 
 # --- ROS 2 apt repository ---------------------------------------------------
 
-step "ROS 2 is not in Ubuntu's own package lists. This adds the official ROS 2 package source, then refreshes the package lists and updates the system (can take a few minutes)."
+step "ROS 2 is not in Ubuntu's own package lists. This adds the official ROS 2 package source, then refreshes the package lists and fully updates the system, so library versions match and the ROS packages install without dependency conflicts (can take a few minutes)."
 if dpkg -s ros2-apt-source >/dev/null 2>&1; then
   skip "ROS 2 apt source already configured"
 else
@@ -249,7 +249,19 @@ else
   run "sudo add-apt-repository -y universe"
   run 'v=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F tag_name | awk -F\" "{print \$4}") && curl -fL -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${v}/ros2-apt-source_${v}.$(. /etc/os-release && echo $VERSION_CODENAME)_all.deb" && sudo dpkg -i /tmp/ros2-apt-source.deb'
 fi
-run "sudo apt-get update && sudo apt-get upgrade -y"
+# Some images (seen on Ubuntu Server for Raspberry Pi) ship only <release> and <release>-security.
+# Without <release>-updates, -dev packages and their libraries come from different pockets and
+# installs fail with "unmet dependencies" (e.g. liblz4-dev, libzstd-dev).
+UBUNTU_SOURCES=/etc/apt/sources.list.d/ubuntu.sources
+if [[ -f $UBUNTU_SOURCES ]] && ! grep -qsE "^[^#]*${VERSION_CODENAME}-updates" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; then
+  info "The ${VERSION_CODENAME}-updates suite is missing from the apt sources; adding it (otherwise package installs fail)."
+  UBUNTU_URI=$(awk '/^URIs:/ {print $2; exit}' "$UBUNTU_SOURCES")
+  UBUNTU_COMPONENTS=$(awk '/^Components:/ {sub(/^Components: */, ""); print; exit}' "$UBUNTU_SOURCES")
+  run "printf '\nTypes: deb\nURIs: $UBUNTU_URI\nSuites: ${VERSION_CODENAME}-updates\nComponents: $UBUNTU_COMPONENTS\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' | sudo tee -a $UBUNTU_SOURCES >/dev/null"
+fi
+# full-upgrade (not upgrade): plain upgrade holds packages back and leaves versions inconsistent,
+# which later breaks installs with "unmet dependencies" (e.g. liblz4-dev / libzstd-dev).
+run "sudo apt-get update && sudo apt-get full-upgrade -y && sudo apt-get install -f -y"
 ok "ROS 2 apt source ready, system updated"
 
 # --- Packages ---------------------------------------------------------------
