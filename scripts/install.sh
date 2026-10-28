@@ -394,6 +394,25 @@ if [[ $ROLE == pc ]]; then
   info "  ros2 run turtlebot3_teleop teleop_keyboard"
 else
   info "  ros2 launch turtlebot3_bringup robot.launch.py"
-  info "Log out and back in once so the dialout group membership applies."
+  info "(After a reboot the dialout group applies; without a reboot log out and back in once.)"
 fi
 info "Check the setup any time with: $(dirname "$(readlink -f "$0")")/check.sh [other-host-ip]"
+
+# A reboot applies a new kernel and libraries from the full upgrade, plus the udev rules and the
+# 'dialout' group on the robot. Not needed in WSL.
+NEED_REBOOT=0
+[[ $ROLE == robot || -f /var/run/reboot-required ]] && NEED_REBOOT=1
+[[ $IS_WSL -eq 1 ]] && NEED_REBOOT=0
+if [[ $NEED_REBOOT -eq 1 ]]; then
+  echo
+  info "A reboot is recommended: it applies the system update, the udev rules and the 'dialout' group."
+  if [[ $DRY_RUN -eq 1 ]]; then
+    skip "dry run: would ask whether to reboot now"
+  elif [[ $ASSUME_YES -eq 1 ]]; then
+    info "Reboot when ready: sudo reboot"
+  elif confirm "Reboot now?" y; then
+    info "Rebooting in 5 seconds (Ctrl+C to cancel)..."
+    sleep 5
+    sudo reboot
+  fi
+fi
