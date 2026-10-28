@@ -42,24 +42,27 @@ network:
 hostname: turtlebot
 manage_etc_hosts: true
 ssh_pwauth: true
+package_update: true
+packages:
+  - openssh-server
 users:
   - name: turtle
     groups: [sudo, dialout]
     shell: /bin/bash
-    sudo: ALL=(ALL) NOPASSWD:ALL
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
     lock_passwd: false
-    passwd: <password-hash>
+    plain_text_passwd: "<password>"
+runcmd:
+  - systemctl enable --now ssh
 ```
 
-Create the password hash on the PC (in WSL) and paste the output (`$6$...`) instead of `<password-hash>`:
+`plain_text_passwd` takes the password as plain text (not a hash; the `passwd` key would need a hash and a plain password there makes login impossible). The password stays readable on the SD card, so use a throwaway one and change it after the first login with `passwd`. For a hash instead, run `openssl passwd -6` and use the output with the `passwd` key.
 
-```bash
-openssl passwd -6
-```
+`ssh_pwauth` only allows password login; it does not start the SSH server. On the tested image the SSH server was **not running after the first boot** (`Connection refused` on port 22 although the Pi answered ping), so `packages` and `runcmd` make sure it is installed and running. This needs a working Wi-Fi at the first boot. If you already booted without it, enable it later from a console (HDMI + keyboard): `sudo systemctl enable --now ssh`, or re-run cloud-init with `sudo cloud-init clean --logs --reboot` (cloud-init reads `user-data` only once per card). Save the files with LF line endings and no tabs.
 
 For key-based login add `ssh_authorized_keys: [<your public key>]` to the user and set `ssh_pwauth: false`.
 
-If you skip this and boot the stock image, the default login is `ubuntu` / `ubuntu` (you must change the password at the first login), and the Pi needs an Ethernet cable for the first boot.
+If you skip this and boot the stock image, the default login is `ubuntu` / `ubuntu` (you must change the password at the first login) on a monitor and keyboard or the Ethernet cable; do not expect SSH to work until you enable it as above.
 
 ### 1.3 First boot
 
@@ -82,10 +85,8 @@ Not tested on the robot yet. The Wi-Fi should be a **5 GHz** network if possible
 ```bash
 sudo apt-get install -y git
 git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
-~/turtlebot3-setup/scripts/install.sh --dry-run   # read what it will do first
 ~/turtlebot3-setup/scripts/install.sh
 ```
-
 Choose role `robot`. It can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` group applies.
 
 ## 3. Flash the OpenCR

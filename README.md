@@ -47,10 +47,10 @@ Recommended order: PC and simulation → Raspberry Pi and bring-up → `check.sh
 
 ```bash
 git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
-~/turtlebot3-setup/scripts/install.sh            # interactive
-~/turtlebot3-setup/scripts/install.sh --dry-run  # only print the commands
-~/turtlebot3-setup/scripts/install.sh --yes      # accept all defaults
+~/turtlebot3-setup/scripts/install.sh
 ```
+
+Add `--yes` to accept all defaults without asking.
 
 The PC role follows the verified [remote PC guide](docs/remote-pc-wsl2.md). The robot role follows the ROBOTIS e-Manual but has not been tested on the robot yet. In WSL, the Windows-side network steps (`.wslconfig`, firewall) still have to be done by hand.
 
