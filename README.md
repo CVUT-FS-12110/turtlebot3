@@ -2,6 +2,19 @@
 
 Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Burger with ROS 2 Jazzy.
 
+## Where to start
+
+| I want to… | Go to |
+|---|---|
+| Install everything quickly on the PC or the robot | [Quick install](#quick-install) (`scripts/install.sh`) |
+| Set up the Windows 11 PC (WSL2) and try the simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) |
+| Set up the Raspberry Pi, flash the OpenCR and bring up the robot | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) |
+| Find out what the OpenCR firmware does and where its sources are | [docs/opencr-firmware.md](docs/opencr-firmware.md) |
+| Fix a problem (no topics, OpenCR not found, lag over Wi-Fi) | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| Check that the setup and the PC–robot link work | [`scripts/check.sh`](scripts/check.sh) – see [Common settings](#common-settings) |
+
+Recommended order: PC and simulation → Raspberry Pi and bring-up → `check.sh` → SLAM and navigation.
+
 ## Hardware
 
 | Part | Model |
@@ -33,7 +46,7 @@ Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Bu
 [`scripts/install.sh`](scripts/install.sh) is an interactive installer for both the remote PC and the robot. It asks for the role, model, `ROS_DOMAIN_ID`, CycloneDDS and (on the robot) LiDAR model, swap, Wi-Fi power saving and OpenCR flashing, shows a summary, then installs ROS 2 Jazzy, builds the TurtleBot3 workspace and writes the environment to `~/.bashrc`. Steps already done (apt source, cloned repositories) are skipped.
 
 ```bash
-git clone <this-repo-url> ~/turtlebot3-setup
+git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
 ~/turtlebot3-setup/scripts/install.sh            # interactive
 ~/turtlebot3-setup/scripts/install.sh --dry-run  # only print the commands
 ~/turtlebot3-setup/scripts/install.sh --yes      # accept all defaults

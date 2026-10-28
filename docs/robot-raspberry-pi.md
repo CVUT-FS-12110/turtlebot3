@@ -16,7 +16,7 @@ Use the server image without a desktop; a desktop eats memory the build and the 
 
 ```bash
 sudo apt-get install -y git
-git clone <this-repo-url> ~/turtlebot3-setup
+git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
 ~/turtlebot3-setup/scripts/install.sh --dry-run   # read what it will do first
 ~/turtlebot3-setup/scripts/install.sh
 ```
