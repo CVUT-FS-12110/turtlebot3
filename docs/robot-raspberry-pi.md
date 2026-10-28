@@ -4,13 +4,78 @@
 
 The Pi runs only the bring-up (`turtlebot3_node` for the OpenCR and the LiDAR driver). SLAM, Nav2 and RViz run on the [remote PC](remote-pc-wsl2.md); the 1 GB of RAM would not carry them.
 
-## 1. Prepare the SD card
+## 1. Prepare the SD card (headless)
 
-1. Flash **Ubuntu Server 24.04 (64-bit) for Raspberry Pi** with Raspberry Pi Imager. In the advanced options set the hostname, a user, SSH and the Wi-Fi network.
-2. Prefer a **5 GHz** network. The 3B+ supports it, and 2.4 GHz is usually crowded. The network must allow multicast between the PC and the robot (guest and corporate networks often do not).
-3. Boot, connect with `ssh <user>@<hostname>.local`, and wait until the first-boot `apt` jobs finish (`cloud-init status --wait`).
+The robot runs without a monitor or keyboard. Ubuntu Server has no desktop, so you only need to make sure the Pi joins the Wi-Fi and accepts SSH. The settings are written to the SD card with cloud-init before the first boot.
 
-Use the server image without a desktop; a desktop eats memory the build and the bring-up need.
+### 1.1 Write the image
+
+Download `ubuntu-24.04.5-preinstalled-server-arm64+raspi.img.xz` from [cdimage.ubuntu.com](https://cdimage.ubuntu.com/ubuntu/releases/noble/release/) (use the newest 24.04.x there, not the 26.x releases; ROS 2 Jazzy needs 24.04) and write it with Raspberry Pi Imager via **Choose OS → Use custom**.
+
+The online catalogue also lists it under **Other general-purpose OS → Ubuntu → Ubuntu Server 24.04.x LTS (64-bit)**, but with the device set to *Raspberry Pi 3* the entry may be hidden. The device choice is only a list filter: pick *Raspberry Pi 4* or *No filtering* to see it (it is the same 64-bit image for the 3B+).
+
+If the Imager offers OS customisation, you can set the hostname, user, SSH and Wi-Fi there and skip 1.2. If it does not, continue with 1.2.
+
+### 1.2 Configure Wi-Fi, user and SSH
+
+After writing the image, the card shows up in Windows as the **`system-boot`** partition. Edit two files on it before ejecting the card. The examples use the user `turtle` and the hostname `turtlebot`; change them if you like.
+
+`network-config` (replace the whole content; use the 2.4 GHz SSID if the Pi does not see a 5 GHz one):
+
+```yaml
+network:
+  version: 2
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: true
+      regulatory-domain: CZ
+      access-points:
+        "<ssid>":
+          password: "<wifi-password>"
+```
+
+`user-data` (replace the whole content; must start with `#cloud-config`):
+
+```yaml
+#cloud-config
+hostname: turtlebot
+manage_etc_hosts: true
+ssh_pwauth: true
+users:
+  - name: turtle
+    groups: [sudo, dialout]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    passwd: <password-hash>
+```
+
+Create the password hash on the PC (in WSL) and paste the output (`$6$...`) instead of `<password-hash>`:
+
+```bash
+openssl passwd -6
+```
+
+For key-based login add `ssh_authorized_keys: [<your public key>]` to the user and set `ssh_pwauth: false`.
+
+If you skip this and boot the stock image, the default login is `ubuntu` / `ubuntu` (you must change the password at the first login), and the Pi needs an Ethernet cable for the first boot.
+
+### 1.3 First boot
+
+1. Insert the card, power the Pi and wait a few minutes. The first boot is slow because cloud-init applies the settings.
+2. Connect from the PC:
+
+   ```bash
+   ssh turtle@turtlebot.local
+   ```
+
+   If `.local` does not resolve, find the IP address in the router's client list.
+3. Wait for the first-boot jobs to finish before running `apt`: `cloud-init status --wait`.
+
+If the Pi does not appear on Wi-Fi, connect it with an Ethernet cable for the first boot, log in, and check `/var/log/cloud-init.log` and `sudo netplan apply`. Wi-Fi can also be set later by putting a file like the `network-config` above into `/etc/netplan/` (mode `600`, with `renderer: networkd`).
+
+Not tested on the robot yet. The Wi-Fi should be a **5 GHz** network if possible (the 3B+ supports it, 2.4 GHz is usually crowded), and it must allow multicast between the PC and the robot (guest and corporate networks often do not).
 
 ## 2. Run the installer
 

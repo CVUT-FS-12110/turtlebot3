@@ -70,4 +70,5 @@ Verify the setup (and the link between the machines) with `scripts/check.sh [oth
 
 - [ROBOTIS TurtleBot3 e-Manual](https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/)
 - [OpenCR source code (ROBOTIS-GIT/OpenCR)](https://github.com/ROBOTIS-GIT/OpenCR), [OpenCR 1.0 e-Manual](https://emanual.robotis.com/docs/en/parts/controller/opencr10/)
+- [Ubuntu 24.04 (Noble) images](https://cdimage.ubuntu.com/ubuntu/releases/noble/release/) – Raspberry Pi Server image for the robot
 - [ROS 2 Jazzy documentation](https://docs.ros.org/en/jazzy/)
