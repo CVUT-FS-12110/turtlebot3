@@ -8,6 +8,20 @@ The Pi runs only the bring-up (`turtlebot3_node` for the OpenCR and the LiDAR dr
 
 The robot runs without a monitor or keyboard. Ubuntu Server has no desktop, so you only need to make sure the Pi joins the Wi-Fi and accepts SSH. The settings are written to the SD card with cloud-init before the first boot.
 
+### 1.0 Choose a fast SD card
+
+The build (and the swap file) writes a lot of small files to the card. What counts is the speed of **small random writes**, not the sequential speed printed on the card. Use a quality card marked **A1 or A2** (the standard guarantees at least 500 random write operations per second for A1), 32 GB or more, from a known brand (SanDisk Extreme, Samsung EVO, Kingston Canvas and similar).
+
+A slow card does not fail cleanly. On the test robot, a 16 GB card from 2020 without an A rating read at 22 MB/s and wrote sequentially at about 10 MB/s, which looks fine, but it managed only about 29 small synchronous writes per second. During the build the kernel then reported `task kworker/... blocked for more than 245 seconds` in `mmc_rescan`, the Pi froze and had to be power cycled, twice in a row.
+
+Check a card before the build (takes a few seconds on a good card; the bad one needed 69 s):
+
+```bash
+dd if=/dev/zero of=~/ddtest bs=4k count=2000 oflag=dsync status=progress; rm ~/ddtest
+```
+
+If this takes more than about 20 seconds (below roughly 100 writes per second), use another card. The sequential speed (`hdparm -t /dev/mmcblk0`, about 22 MB/s is the limit of the Pi 3B+) says little about it.
+
 ### 1.1 Write the image
 
 Download `ubuntu-24.04.5-preinstalled-server-arm64+raspi.img.xz` from [cdimage.ubuntu.com](https://cdimage.ubuntu.com/ubuntu/releases/noble/release/) (use the newest 24.04.x there, not the 26.x releases; ROS 2 Jazzy needs 24.04) and write it with Raspberry Pi Imager via **Choose OS → Use custom**.
