@@ -8,6 +8,9 @@
 # Usage: ./install.sh [--yes] [--dry-run]
 #   --yes      accept all defaults without asking
 #   --dry-run  print the commands instead of running them
+#
+# On the first question the installer offers to restart itself inside tmux (installs tmux and a
+# small ~/.tmux.conf block), so an SSH drop does not stop a long build.
 
 set -euo pipefail
 
@@ -19,7 +22,7 @@ for arg in "$@"; do
   case "$arg" in
     -y|--yes) ASSUME_YES=1 ;;
     -n|--dry-run) DRY_RUN=1 ;;
-    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -146,6 +149,81 @@ echo
 echo "${bold}Questions${reset} ${dim}(press Enter to accept the value in [brackets])${reset}"
 echo
 
+# --- tmux -------------------------------------------------------------------
+# A long build started over SSH dies when the connection drops. Inside tmux it keeps running and
+# you reattach with: tmux attach -t turtlebot3. Asked first, so every later answer is given inside it.
+
+SELF=$(readlink -f "$0")
+TMUX_BEGIN="# >>> turtlebot3 >>>"
+TMUX_END="# <<< turtlebot3 <<<"
+IFS= read -r -d '' TMUX_CONF <<'EOF' || true
+# Long scrollback for build and ROS logs, mouse scrolling (hold Shift to select text).
+set -g history-limit 50000
+set -g mouse on
+set -g escape-time 10
+set -g focus-events on
+set -g default-terminal "screen-256color"
+setw -g aggressive-resize on
+setw -g mode-keys vi
+
+# Number windows and panes from 1, no gaps when a window closes.
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+# ROS runs several programs side by side (bringup, teleop, topic echo). Keep the window names you
+# give them (Ctrl+b ,) and open new windows and panes in the current directory.
+setw -g automatic-rename off
+set -g allow-rename off
+bind c new-window -c "#{pane_current_path}"
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+bind r source-file ~/.tmux.conf \; display-message "tmux config reloaded"
+
+# Pane borders show what runs in each pane (ros2, python3, ...).
+set -g pane-border-status top
+set -g pane-border-format " #{pane_index}: #{pane_current_command} "
+
+# Status bar: session, ROS settings, load average (a busy load shows that a build is still alive).
+set -g status-interval 5
+set -g status-left-length 20
+set -g status-right-length 90
+set -g status-left "[#S] "
+set -g status-right '#(echo "ROS_DOMAIN_ID ${ROS_DOMAIN_ID:-?}, ${TURTLEBOT3_MODEL:-?}") | load #(cut -d" " -f1-3 /proc/loadavg) | #H %H:%M'
+EOF
+TMUX_BLOCK="$TMUX_BEGIN"$'\n'"$TMUX_CONF""$TMUX_END"
+
+if [[ -n ${TMUX:-} ]]; then
+  info "Running inside tmux: an SSH drop will not stop the installer."
+elif [[ -t 0 && -t 1 ]]; then
+  default_tmux=n
+  [[ $IS_PI -eq 1 || -n ${SSH_CONNECTION:-} ]] && default_tmux=y
+  if confirm "Run the installer inside tmux, so an SSH drop does not stop a long build (installs tmux and a small config)?" "$default_tmux"; then
+    if command -v tmux >/dev/null && tmux has-session -t turtlebot3 2>/dev/null; then
+      warn "A tmux session 'turtlebot3' is already running (probably an earlier installer run). Attach with: tmux attach -t turtlebot3"
+      exit 0
+    fi
+    if command -v tmux >/dev/null; then
+      skip "tmux already installed"
+    else
+      run "sudo apt-get update && sudo apt-get install -y tmux"
+    fi
+    # Replace a previous installer block in ~/.tmux.conf, keep everything else.
+    run "touch ~/.tmux.conf && sed -i '/^$TMUX_BEGIN\$/,/^$TMUX_END\$/d' ~/.tmux.conf"
+    if [[ $DRY_RUN -eq 1 ]]; then
+      echo "   ${dim}\$${reset} ${bold}cat >> ~/.tmux.conf${reset}"
+      sed 's/^/      /' <<< "$TMUX_BLOCK"
+      skip "dry run: would restart the installer inside the tmux session 'turtlebot3'"
+    else
+      printf '%s\n' "$TMUX_BLOCK" >> ~/.tmux.conf
+      ok "tmux installed and configured (~/.tmux.conf)"
+      info "Restarting the installer inside tmux. Detach: Ctrl+b then d. Reattach later: tmux attach -t turtlebot3"
+      exec tmux new-session -s turtlebot3 bash -c '"$0" "$@"; code=$?; echo; read -r -p "Installer exited with code $code. Press Enter to close tmux. " _; exit "$code"' "$SELF" "$@"
+    fi
+  fi
+fi
+echo
+
 default_role=pc
 [[ $IS_PI -eq 1 ]] && default_role=robot
 
@@ -211,7 +289,8 @@ for i in "${!PLAN[@]}"; do
 done
 if [[ $ROLE == robot ]]; then
   echo
-  warn "The build can take over an hour on a Raspberry Pi. Keep the robot on wall power and run this in tmux/screen so an SSH drop does not stop it."
+  warn "The build can take over an hour on a Raspberry Pi. Keep the robot on wall power."
+  [[ -n ${TMUX:-} ]] || warn "Not running in tmux: an SSH drop would stop the build. Restart the installer and answer yes to the tmux question."
 fi
 echo
 confirm "Start installation?" y || exit 0

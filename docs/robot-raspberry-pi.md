@@ -87,6 +87,31 @@ sudo apt-get install -y git
 git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
 ~/turtlebot3-setup/scripts/install.sh
 ```
+If the repository is already cloned, update it instead of cloning again (`git clone` fails when `~/turtlebot3-setup` exists):
+
+```bash
+git -C ~/turtlebot3-setup pull
+~/turtlebot3-setup/scripts/install.sh
+```
+
+If `git pull` complains about local changes, see them with `git -C ~/turtlebot3-setup status`. To drop your changes and match the remote exactly, run `git -C ~/turtlebot3-setup fetch && git -C ~/turtlebot3-setup reset --hard origin/master`. Running the installer again is safe: finished steps are skipped and only its block in `~/.bashrc` is replaced.
+
+Answer **yes** to the first question (run inside tmux). The installer then restarts itself in a tmux session called `turtlebot3`, so a dropped SSH connection does not stop the build. To leave it running, press `Ctrl+b` then `d`; to come back after logging in again, run `tmux attach -t turtlebot3`. With the mouse enabled in the tmux config, hold `Shift` to select text in most terminals.
+
+The installer's `~/.tmux.conf` block is meant for running several ROS 2 programs at once (bring-up, teleop, topic echo). The prefix is the default `Ctrl+b`:
+
+| Keys | Action |
+|---|---|
+| `c` | new window in the current directory (for example one for `bringup`, one for `teleop`) |
+| `,` | rename the window; the name stays (automatic renaming is off) |
+| `\|` or `-` | split the pane side by side or top and bottom, in the current directory |
+| `1`, `2`, ... | go to window 1, 2, ... (numbering starts at 1) |
+| `[` | scroll back through the log (vi keys, `q` to leave; the mouse wheel works too) |
+| `r` | reload `~/.tmux.conf` after editing it |
+| `d` | detach and leave everything running |
+
+The status bar shows `ROS_DOMAIN_ID`, the robot model and the load average. A load above the number of cores (4 on a Pi 3B+) means the Pi is busy, for example during a build. Pane borders show the program running in each pane.
+
 Choose role `robot`. It can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` group applies.
 
 ## 3. Flash the OpenCR

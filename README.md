@@ -52,6 +52,10 @@ git clone https://github.com/CVUT-FS-12110/turtlebot3.git ~/turtlebot3-setup
 ~/turtlebot3-setup/scripts/install.sh
 ```
 
+The first question offers to run the installer inside **tmux** (default yes on a Raspberry Pi or over SSH). It installs tmux, adds a block to `~/.tmux.conf` tuned for ROS 2 (long scrollback, mouse scrolling, vi keys in copy mode, window names that stay, new panes in the current directory, `ROS_DOMAIN_ID`, robot model and load average in the status bar) and restarts itself in a session called `turtlebot3`, so an SSH drop does not stop a long build. Detach with `Ctrl+b` then `d`, and reattach later with `tmux attach -t turtlebot3`.
+
+If `~/turtlebot3-setup` already exists, update it with `git -C ~/turtlebot3-setup pull` and run the installer again.
+
 Add `--yes` to accept all defaults without asking.
 
 The PC role follows the verified [remote PC guide](docs/remote-pc-wsl2.md). The robot role follows the ROBOTIS e-Manual but has not been tested on the robot yet. In WSL, the Windows-side network steps (`.wslconfig`, firewall) still have to be done by hand.
