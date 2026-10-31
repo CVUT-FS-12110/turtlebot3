@@ -278,7 +278,7 @@ WLAN_IF=$(ls /sys/class/net 2>/dev/null | grep -m1 '^wl' || true)
 if [[ $ROLE == robot ]]; then
   choose LDS_MODEL "LiDAR model" LDS-01 LDS-01 LDS-02 LDS-03
   if [[ $MEM_MB -lt 2048 && ! -f /swapfile ]]; then
-    confirm "Less than 2 GB RAM: create a 2 GB swap file (needed for the build)?" y && DO_SWAP=1
+    confirm "Less than 2 GB RAM: create a 3 GB swap file (needed for the build)?" y && DO_SWAP=1
   fi
   confirm "Disable automatic apt upgrades (they block apt and use memory on a Pi)?" y && DO_NO_AUTOUPGRADE=1
   if [[ -n $WLAN_IF ]]; then
@@ -288,11 +288,18 @@ if [[ $ROLE == robot ]]; then
 fi
 
 BUILD_ARGS="--symlink-install"
-[[ $ROLE == robot || $MEM_MB -lt 2048 ]] && BUILD_ARGS+=" --parallel-workers 1"
+BUILD_ENV=""
+if [[ $ROLE == robot || $MEM_MB -lt 2048 ]]; then
+  # One package and one compiler job at a time, an optimized (smaller) build, and a GCC that frees
+  # memory sooner. The heaviest package (turtlebot3_node) otherwise needs several hundred MB.
+  BUILD_ARGS+=" --parallel-workers 1 --cmake-args -DCMAKE_BUILD_TYPE=Release"
+  BUILD_ENV="MAKEFLAGS=-j1 CMAKE_BUILD_PARALLEL_LEVEL=1 CXXFLAGS='--param ggc-min-expand=20 --param ggc-min-heapsize=32768'"
+fi
 
 # The steps below run in exactly this order; step() reads the titles from here.
 [[ $DO_NO_AUTOUPGRADE -eq 1 ]] && PLAN+=("Disable automatic apt upgrades")
-[[ $DO_SWAP -eq 1 ]] && PLAN+=("Create a 2 GB swap file")
+[[ $DO_SWAP -eq 1 ]] && PLAN+=("Create a 3 GB swap file")
+[[ $ROLE == robot ]] && PLAN+=("Protect SSH from the out-of-memory killer")
 [[ $DO_WIFI_PS -eq 1 ]] && PLAN+=("Disable Wi-Fi power saving")
 PLAN+=("Add the ROS 2 apt repository")
 PLAN+=("Install ROS 2 $ROS_DISTRO_NAME packages")
@@ -342,9 +349,21 @@ fi
 
 if [[ $DO_SWAP -eq 1 ]]; then
   step "With 1 GB of RAM the compiler runs out of memory while building ROS packages. A swap file on the SD card gives it room (slower, but it finishes)."
-  run "sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+  run "sudo fallocate -l 3G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
   run "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab"
-  ok "2 GB swap active and enabled at boot"
+  ok "3 GB swap active and enabled at boot"
+fi
+
+if [[ $ROLE == robot ]]; then
+  step "When memory runs out, Linux kills a process to recover; without this it can pick sshd and you lose the connection mid-build. Lowering the OOM score of sshd makes the kernel pick the compiler instead."
+  OOM_CONF=/etc/systemd/system/ssh.service.d/oom.conf
+  if grep -qs '^OOMScoreAdjust=-900' "$OOM_CONF"; then
+    skip "sshd is already protected"
+  else
+    run "sudo mkdir -p /etc/systemd/system/ssh.service.d && printf '[Service]\nOOMScoreAdjust=-900\n' | sudo tee $OOM_CONF >/dev/null"
+    run "sudo systemctl daemon-reload && sudo systemctl restart ssh"
+    ok "sshd protected from the OOM killer"
+  fi
 fi
 
 if [[ $DO_WIFI_PS -eq 1 ]]; then
@@ -459,7 +478,7 @@ step "Compiles the TurtleBot3 packages with colcon (build options: $BUILD_ARGS).
 if build_current; then
   skip "Workspace already built from the current sources"
 else
-  run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && cd '$WS_DIR' && colcon build $BUILD_ARGS"
+  run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && cd '$WS_DIR' && $BUILD_ENV nice -n 10 colcon build $BUILD_ARGS"
   run "printf '%s\n' '$BUILD_ARGS' > '$WS_DIR/.installer-build-stamp'"
   ok "Workspace built"
 fi

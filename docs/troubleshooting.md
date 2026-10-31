@@ -24,7 +24,7 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 
 ## Raspberry Pi
 
-- **Build is killed or the Pi freezes:** out of memory. Make sure the swap file exists (`swapon --show`) and build with one worker: `colcon build --symlink-install --parallel-workers 1`.
+- **Build is killed or the Pi freezes:** out of memory. Make sure the swap file exists (`swapon --show`) and build with one worker and one compiler job: `MAKEFLAGS=-j1 colcon build --symlink-install --parallel-workers 1 --cmake-args -DCMAKE_BUILD_TYPE=Release`. The installer does this itself, creates a 3 GB swap file and lowers the OOM score of `sshd` so a memory shortage does not cut your SSH connection.
 - **The Pi freezes during a long build and `journalctl -b -1` shows `blocked for more than 245 seconds` in `mmc_rescan`:** the SD card is too slow for small writes, even if its sequential speed looks fine. Test it and replace it with an A1/A2 card, see [robot-raspberry-pi.md](robot-raspberry-pi.md#10-choose-a-fast-sd-card).
 - **`apt` is locked:** automatic upgrades are running. Wait, or disable them (the installer offers it).
 - **Topics lag or drop over Wi-Fi:** disable Wi-Fi power saving (`iw dev wlan0 get power_save` should say `off`), move to 5 GHz, and keep the PC on the same access point.
