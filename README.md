@@ -64,6 +64,32 @@ Add `--yes` to accept all defaults without asking.
 
 The PC role follows the verified [remote PC guide](docs/remote-pc-wsl2.md). The robot role follows the ROBOTIS e-Manual but has not been tested on the robot yet. In WSL, the Windows-side network steps (`.wslconfig`, firewall) still have to be done by hand.
 
+## Updating from GitHub
+
+This repository is cloned to `~/turtlebot3-setup` on both machines. After every change on GitHub, update **both**, then do only what the changes need (details in [docs/workflow.md](docs/workflow.md#update-from-github)).
+
+**PC (WSL2):**
+
+```bash
+git -C ~/turtlebot3-setup pull
+```
+
+Rebuild `auto_mapper` only if launch or config files were added or removed, or `setup.py` / `package.xml` changed. Edits to its Python code and YAML need no build (`--symlink-install`). Open a new terminal afterwards.
+
+```bash
+cd ~/turtlebot3_ws && source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --packages-select auto_mapper
+```
+
+**ROBOT (Raspberry Pi, over SSH):**
+
+```bash
+git -C ~/turtlebot3-setup pull
+```
+
+Nothing is built on the Pi for this repository; `robot/` runs straight from the clone. Restart the bring-up if `robot/` changed. Never build `auto_mapper` or install SLAM/Nav2/RViz there.
+
+If the change adds a package to `scripts/install.sh`, install just that one with `sudo apt install <package>` on the machine it is for, or run the installer again (finished steps are skipped). Check that both machines run the same version with `git -C ~/turtlebot3-setup log --oneline -1`. If `git pull` complains about local changes, see [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md).
+
 ## Common settings
 
 The PC and the robot must use the same values:
