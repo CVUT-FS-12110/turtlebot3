@@ -11,7 +11,7 @@ Against a simulated sensor that loses 15 % of the packets and 15 % of the bytes 
 | stock reading from fixed positions | 2.6 | 21 |
 | robust driver | 4.0 to 4.5 | about 250 |
 
-It does not repair the link: the gaps in the circle remain and a better cable or adapter is still the real cure. The simulation shows what the driver does with such a stream; it has **not been run on the robot yet**.
+It does not repair the link: the gaps in the circle remain and a better cable or adapter is still the real cure. The simulation shows what the driver does with such a stream. On the robot it raised `/scan` from 2.5 to 5.0 scans per second and the valid rays per scan from 3 to 27 to about 190 (169 to 209), and the map has clearly more points.
 
 ## ROBOT (Raspberry Pi)
 
