@@ -13,10 +13,11 @@ WARN, CRIT = 11.0, 10.5
 
 class FormatTest(unittest.TestCase):
 
-    def test_full_battery_is_black_on_the_bar_background(self):
+    def test_full_battery_is_plain_black_on_the_bar_background(self):
         line = format_status(12.4, 0.95, WARN, CRIT)
-        self.assertTrue(line.startswith('#[fg=black,bold]'))
+        self.assertTrue(line.startswith('#[fg=colour16]'))
         self.assertNotIn('bg=', line)
+        self.assertNotIn('bold', line)   # bold black turns grey in many terminals
         self.assertIn('Battery: 12.4 V 95 %', line)
 
     def test_colour_styles_set_foreground_and_background(self):
@@ -36,7 +37,7 @@ class FormatTest(unittest.TestCase):
         self.assertIn('Battery LOW: 10.2 V', line)
 
     def test_limits_belong_to_the_better_state(self):
-        self.assertTrue(format_status(11.0, 0.5, WARN, CRIT).startswith('#[fg=black,bold]'))
+        self.assertTrue(format_status(11.0, 0.5, WARN, CRIT).startswith('#[fg=colour16]'))
         self.assertIn('bg=yellow', format_status(10.5, 0.5, WARN, CRIT))
 
     def test_percentage_given_in_percent_is_kept(self):

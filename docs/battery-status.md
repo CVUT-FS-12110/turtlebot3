@@ -8,12 +8,12 @@ Battery: 11.8 V 87 % | ROS_DOMAIN_ID 30, burger | load 0.52 0.40 0.31 | turtle 1
 
 | Colour | Meaning |
 |---|---|
-| bold black text on the bar's background | above the warning voltage |
+| black text on the bar's background | above the warning voltage |
 | yellow box | below `warn_voltage` (default 11.0 V): plan to stop and charge |
 | red box, `Battery LOW:` | below `critical_voltage` (default 10.5 V): stop driving, a deeply discharged LiPo is damaged |
 | grey box, `Battery: no data (N s)` | no message for 5 s: the bring-up is not running or the OpenCR does not answer |
 
-A healthy battery is bold black text on the bar's own background, so it blends in. The warning boxes set a foreground and a background colour on purpose: the default tmux status bar is green, and text coloured only green on it is invisible.
+A healthy battery is plain black text on the bar's own background, so it blends in. It is deliberately not bold: many terminals, Windows Terminal among them, draw bold black as grey. The warning boxes set a foreground and a background colour on purpose: the default tmux status bar is green, and text coloured only green on it is invisible.
 
 The limits are my choice for a 3-cell LiPo (11.1 V nominal, 12.6 V full) and are not taken from the OpenCR firmware. Compare them with the point where the board starts to beep and adjust them (below).
 
