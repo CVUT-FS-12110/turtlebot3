@@ -118,6 +118,39 @@ ros_source() {
   set -u
 }
 
+# --- Idempotency helpers: steps check what is already done and skip it ------
+
+APT="sudo apt-get -o DPkg::Lock::Timeout=900"
+STAMP_DIR="$HOME/.cache/turtlebot3-installer"
+UPGRADE_STAMP="$STAMP_DIR/system-upgraded"
+
+# missing_pkgs pkg... - prints the packages that are not installed yet.
+missing_pkgs() {
+  local p
+  for p in "$@"; do
+    dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q '^install ok installed' || echo "$p"
+  done
+}
+
+# apt_install pkg... - installs only what is missing.
+apt_install() {
+  local missing
+  missing=$(missing_pkgs "$@" | xargs)
+  if [[ -z $missing ]]; then
+    skip "already installed: $*"
+  else
+    run "$APT install -y $missing"
+  fi
+}
+
+# build_current - true when the last successful build used the same options and no source file
+# changed since.
+build_current() {
+  local stamp="$WS_DIR/.installer-build-stamp"
+  [[ -f $stamp && $(cat "$stamp") == "$BUILD_ARGS" && -d $WS_DIR/install ]] || return 1
+  [[ -z $(find "$WS_DIR/src" -type f -newer "$stamp" -not -path '*/.git/*' -print -quit) ]]
+}
+
 # --- Preflight --------------------------------------------------------------
 
 [[ $EUID -ne 0 ]] || die "Run as a normal user, not root (sudo is used where needed)."
@@ -299,8 +332,12 @@ confirm "Start installation?" y || exit 0
 
 if [[ $DO_NO_AUTOUPGRADE -eq 1 ]]; then
   step "Ubuntu checks for updates in the background and holds the apt lock while it does. On a Pi this also eats scarce memory and makes the installer fail with 'could not get lock'. Turning it off means you update manually when you choose."
-  run "sudo sed -i 's/\"1\"/\"0\"/' /etc/apt/apt.conf.d/20auto-upgrades"
-  ok "Automatic upgrades disabled"
+  if grep -qs '"1"' /etc/apt/apt.conf.d/20auto-upgrades; then
+    run "sudo sed -i 's/\"1\"/\"0\"/' /etc/apt/apt.conf.d/20auto-upgrades"
+    ok "Automatic upgrades disabled"
+  else
+    skip "Automatic upgrades already disabled"
+  fi
 fi
 
 if [[ $DO_SWAP -eq 1 ]]; then
@@ -312,10 +349,15 @@ fi
 
 if [[ $DO_WIFI_PS -eq 1 ]]; then
   step "Wi-Fi power saving puts the radio to sleep between packets, which shows up as lag and dropped ROS topics. A small systemd unit switches it off on $WLAN_IF at every boot."
-  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y iw"
-  run "printf '%s\n' '[Unit]' 'Description=Disable Wi-Fi power saving' 'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/sbin/iw dev $WLAN_IF set power_save off' '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/wifi-powersave-off.service >/dev/null"
-  run "sudo systemctl daemon-reload && sudo systemctl enable --now wifi-powersave-off.service"
-  ok "Wi-Fi power saving off on $WLAN_IF"
+  if systemctl is-enabled wifi-powersave-off.service >/dev/null 2>&1 \
+     && grep -qs "dev $WLAN_IF " /etc/systemd/system/wifi-powersave-off.service; then
+    skip "Wi-Fi power saving already disabled on $WLAN_IF"
+  else
+    apt_install iw
+    run "printf '%s\n' '[Unit]' 'Description=Disable Wi-Fi power saving' 'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/sbin/iw dev $WLAN_IF set power_save off' '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/wifi-powersave-off.service >/dev/null"
+    run "sudo systemctl daemon-reload && sudo systemctl enable --now wifi-powersave-off.service"
+    ok "Wi-Fi power saving off on $WLAN_IF"
+  fi
 fi
 
 # --- ROS 2 apt repository ---------------------------------------------------
@@ -324,7 +366,8 @@ step "ROS 2 is not in Ubuntu's own package lists. This adds the official ROS 2 p
 if dpkg -s ros2-apt-source >/dev/null 2>&1; then
   skip "ROS 2 apt source already configured"
 else
-  run "sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 install -y software-properties-common curl"
+  run "rm -f '$UPGRADE_STAMP'"
+  run "$APT update && $APT install -y software-properties-common curl"
   run "sudo add-apt-repository -y universe"
   run 'v=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F tag_name | awk -F\" "{print \$4}") && curl -fL -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${v}/ros2-apt-source_${v}.$(. /etc/os-release && echo $VERSION_CODENAME)_all.deb" && sudo dpkg -i /tmp/ros2-apt-source.deb'
 fi
@@ -337,30 +380,37 @@ if [[ -f $UBUNTU_SOURCES ]] && ! grep -qsE "^[^#]*${VERSION_CODENAME}-updates" /
   UBUNTU_URI=$(awk '/^URIs:/ {print $2; exit}' "$UBUNTU_SOURCES")
   UBUNTU_COMPONENTS=$(awk '/^Components:/ {sub(/^Components: */, ""); print; exit}' "$UBUNTU_SOURCES")
   run "printf '\nTypes: deb\nURIs: $UBUNTU_URI\nSuites: ${VERSION_CODENAME}-updates\nComponents: $UBUNTU_COMPONENTS\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' | sudo tee -a $UBUNTU_SOURCES >/dev/null"
+  run "rm -f '$UPGRADE_STAMP'"
 fi
 # full-upgrade (not upgrade): plain upgrade holds packages back and leaves versions inconsistent,
 # which later breaks installs with "unmet dependencies" (e.g. liblz4-dev / libzstd-dev).
-run "sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 full-upgrade -y && sudo apt-get -o DPkg::Lock::Timeout=900 install -f -y"
-ok "ROS 2 apt source ready, system updated"
+# A recent successful upgrade (within 24 h) is not repeated when the installer is restarted.
+if [[ -n $(find "$UPGRADE_STAMP" -mmin -1440 2>/dev/null) ]]; then
+  skip "System was already updated in the last 24 hours"
+else
+  run "$APT update && $APT full-upgrade -y && $APT install -f -y"
+  run "mkdir -p '$STAMP_DIR' && touch '$UPGRADE_STAMP'"
+  ok "ROS 2 apt source ready, system updated"
+fi
 
 # --- Packages ---------------------------------------------------------------
 
 if [[ $ROLE == pc ]]; then
   step "Installs ROS 2 with its GUI tools (RViz), Gazebo simulation, Cartographer (SLAM) and Nav2 (navigation). This is the big download of the PC setup."
-  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y git ros-$ROS_DISTRO_NAME-desktop ros-dev-tools \
+  apt_install git ros-$ROS_DISTRO_NAME-desktop ros-dev-tools \
     ros-$ROS_DISTRO_NAME-ros-gz \
     ros-$ROS_DISTRO_NAME-cartographer ros-$ROS_DISTRO_NAME-cartographer-ros \
-    ros-$ROS_DISTRO_NAME-navigation2 ros-$ROS_DISTRO_NAME-nav2-bringup"
+    ros-$ROS_DISTRO_NAME-navigation2 ros-$ROS_DISTRO_NAME-nav2-bringup
 else
   step "Installs only the minimum the robot needs: the ROS 2 base system, the LiDAR driver and the OpenCR communication libraries. SLAM, navigation and RViz run on the PC."
-  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
+  apt_install git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
-    ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev"
+    ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev
 fi
 
 if [[ $USE_CYCLONE -eq 1 ]]; then
   info "CycloneDDS: the network layer ROBOTIS recommends; PC and robot must use the same one."
-  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y ros-$ROS_DISTRO_NAME-rmw-cyclonedds-cpp"
+  apt_install ros-$ROS_DISTRO_NAME-rmw-cyclonedds-cpp
 fi
 ok "ROS 2 packages installed"
 
@@ -395,29 +445,47 @@ ok "Sources ready in $WS_DIR/src"
 
 if [[ $ROLE == pc ]]; then
   step "rosdep reads what the packages depend on and installs anything still missing, so the build does not stop halfway."
-  run "[ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || sudo rosdep init"
-  run "rosdep update"
-  run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && rosdep install --from-paths '$WS_DIR/src' --ignore-src -y --rosdistro $ROS_DISTRO_NAME"
-  ok "Dependencies installed"
+  if build_current; then
+    skip "Workspace already built from the current sources, dependencies were resolved then"
+  else
+    run "[ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || sudo rosdep init"
+    run "rosdep update"
+    run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && rosdep install --from-paths '$WS_DIR/src' --ignore-src -y --rosdistro $ROS_DISTRO_NAME"
+    ok "Dependencies installed"
+  fi
 fi
 
 step "Compiles the TurtleBot3 packages with colcon (build options: $BUILD_ARGS). $([[ $ROLE == robot ]] && echo "On a Raspberry Pi this can take over an hour and the output may look stuck; that is normal." || echo "Takes a few minutes.")"
-run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && cd '$WS_DIR' && colcon build $BUILD_ARGS"
-ok "Workspace built"
+if build_current; then
+  skip "Workspace already built from the current sources"
+else
+  run "source /opt/ros/$ROS_DISTRO_NAME/setup.bash && cd '$WS_DIR' && colcon build $BUILD_ARGS"
+  run "printf '%s\n' '$BUILD_ARGS' > '$WS_DIR/.installer-build-stamp'"
+  ok "Workspace built"
+fi
 
 # --- Robot hardware access --------------------------------------------------
 
 if [[ $ROLE == robot ]]; then
   step "udev rules give the OpenCR and the LiDAR stable device names and let you use them; adding your user to the 'dialout' group allows opening the serial ports without sudo."
-  run "sudo cp '$WS_DIR/src/turtlebot3/turtlebot3_bringup/script/99-turtlebot3-cdc.rules' /etc/udev/rules.d/"
-  run "sudo udevadm control --reload-rules && sudo udevadm trigger"
-  run "sudo usermod -aG dialout '$USER'"
-  ok "USB access configured (log out and back in to apply the group)"
+  UDEV_SRC="$WS_DIR/src/turtlebot3/turtlebot3_bringup/script/99-turtlebot3-cdc.rules"
+  if cmp -s "$UDEV_SRC" /etc/udev/rules.d/99-turtlebot3-cdc.rules && id -nG "$USER" | grep -qw dialout; then
+    skip "udev rules and dialout group already set up"
+  else
+    run "sudo cp '$UDEV_SRC' /etc/udev/rules.d/"
+    run "sudo udevadm control --reload-rules && sudo udevadm trigger"
+    run "sudo usermod -aG dialout '$USER'"
+    ok "USB access configured (log out and back in to apply the group)"
+  fi
 fi
 
 if [[ $DO_OPENCR -eq 1 ]]; then
   step "Uploads ROBOTIS' prebuilt firmware for the $TB3_MODEL into the OpenCR board over USB (/dev/ttyACM0). The board must be connected and powered. If it fails, enter recovery mode: hold SW2, press Reset, release Reset, release SW2."
-  run "sudo dpkg --add-architecture armhf && sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 install -y libc6:armhf"
+  if [[ -n $(missing_pkgs libc6:armhf) ]]; then
+    run "sudo dpkg --add-architecture armhf && $APT update && $APT install -y libc6:armhf"
+  else
+    skip "libc6:armhf already installed"
+  fi
   run "tmp=\$(mktemp -d) && cd \"\$tmp\" \
     && wget -q https://github.com/ROBOTIS-GIT/OpenCR-Binaries/raw/master/turtlebot3/ROS2/latest/opencr_update.tar.bz2 \
     && tar -xjf opencr_update.tar.bz2 && cd opencr_update \
