@@ -15,6 +15,7 @@
 set -euo pipefail
 
 ROS_DISTRO_NAME=jazzy
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ASSUME_YES=0
 DRY_RUN=0
 
@@ -419,7 +420,8 @@ if [[ $ROLE == pc ]]; then
   apt_install git ros-$ROS_DISTRO_NAME-desktop ros-dev-tools \
     ros-$ROS_DISTRO_NAME-ros-gz \
     ros-$ROS_DISTRO_NAME-cartographer ros-$ROS_DISTRO_NAME-cartographer-ros \
-    ros-$ROS_DISTRO_NAME-navigation2 ros-$ROS_DISTRO_NAME-nav2-bringup
+    ros-$ROS_DISTRO_NAME-navigation2 ros-$ROS_DISTRO_NAME-nav2-bringup \
+    ros-$ROS_DISTRO_NAME-slam-toolbox
 else
   step "Installs only the minimum the robot needs: the ROS 2 base system, the LiDAR driver and the OpenCR communication libraries. SLAM, navigation and RViz run on the PC."
   apt_install git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
@@ -452,6 +454,12 @@ if [[ $ROLE == pc ]]; then
   clone ROBOTIS-GIT/turtlebot3_msgs
   clone ROBOTIS-GIT/turtlebot3
   clone ROBOTIS-GIT/turtlebot3_simulations
+  # Autonomous mapping package from this repository; a link keeps it editable and up to date with git pull.
+  if [[ -e "$WS_DIR/src/auto_mapper" ]]; then
+    skip "auto_mapper already linked"
+  else
+    run "ln -s '$REPO_DIR/auto_mapper' '$WS_DIR/src/auto_mapper'"
+  fi
 else
   clone ROBOTIS-GIT/turtlebot3
   [[ $LDS_MODEL == LDS-02 ]] && clone ROBOTIS-GIT/ld08_driver

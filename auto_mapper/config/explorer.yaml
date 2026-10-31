@@ -1,0 +1,13 @@
+explorer:
+  ros__parameters:
+    map_frame: map
+    robot_frame: base_footprint
+    free_threshold: 25          # occupancy below this counts as free (0-100)
+    min_frontier_size: 5        # ignore frontiers shorter than this many cells (5 cm each)
+    size_weight: 0.5            # >0 prefers long frontiers over short, nearer ones
+    blacklist_radius: 0.5       # m around a failed goal that is not tried again
+    goal_timeout: 90.0          # s before a goal is cancelled and blacklisted
+    finish_after_empty_ticks: 5 # consecutive ticks without a frontier before the map is saved
+    save_map: true
+    map_path: ~/maps/auto_map
+    period: 1.0
