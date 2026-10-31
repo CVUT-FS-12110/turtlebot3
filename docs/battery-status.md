@@ -8,10 +8,12 @@ bat 11.8 V 87 % | ROS_DOMAIN_ID 30, burger | load 0.52 0.40 0.31 | turtle 19:42
 
 | Colour | Meaning |
 |---|---|
-| green | above the warning voltage |
-| yellow | below `warn_voltage` (default 11.0 V): plan to stop and charge |
-| red, `BAT LOW` | below `critical_voltage` (default 10.5 V): stop driving, a deeply discharged LiPo is damaged |
-| grey, `bat no data (N s)` | no message for 5 s: the bring-up is not running or the OpenCR does not answer |
+| light green box | above the warning voltage |
+| yellow box | below `warn_voltage` (default 11.0 V): plan to stop and charge |
+| red box, `BAT LOW` | below `critical_voltage` (default 10.5 V): stop driving, a deeply discharged LiPo is damaged |
+| grey box, `bat no data (N s)` | no message for 5 s: the bring-up is not running or the OpenCR does not answer |
+
+Every state sets a foreground and a background colour on purpose. The default tmux status bar is green, and a text coloured only green on it is invisible.
 
 The limits are my choice for a 3-cell LiPo (11.1 V nominal, 12.6 V full) and are not taken from the OpenCR firmware. Compare them with the point where the board starts to beep and adjust them (below).
 
@@ -66,6 +68,7 @@ ros2 topic echo /battery_state --once --field voltage
 
 | Symptom | Action |
 |---|---|
+| Only ` | ` where the battery should be | The text is there but has the colour of the bar. Update to the version with explicit background colours (`git pull`) and restart the bring-up. `tmux show -g status-style` shows the bar colours (default `bg=green,fg=black`). |
 | No battery item in the status bar | ROBOT: `cat /tmp/tb3_battery`. If the file is missing, the monitor is not running (use `bringup.launch.py`). If it exists, the `status-right` line is missing from `~/.tmux.conf`. |
 | Grey `bat no data` | ROBOT: `ros2 topic hz /battery_state`. No messages mean the bring-up or the OpenCR link is down, see [troubleshooting.md](troubleshooting.md). |
 | Voltage looks wrong | Compare with a multimeter on the battery connector. The value comes from the OpenCR measurement. |
