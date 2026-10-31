@@ -12,6 +12,7 @@ Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Bu
 | Find out what the OpenCR firmware does and where its sources are | [docs/opencr-firmware.md](docs/opencr-firmware.md) |
 | Drive the robot with the Evolveo Fighter F1 gamepad | [docs/gamepad.md](docs/gamepad.md) |
 | Let the robot map a room on its own (SLAM + frontier exploration) | [docs/auto-mapping.md](docs/auto-mapping.md) |
+| Filter the odometry with an EKF (better maps) | [docs/ekf.md](docs/ekf.md) |
 | Fix a problem (no topics, OpenCR not found, lag over Wi-Fi) | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Check that the setup and the PC–robot link work | [`scripts/check.sh`](scripts/check.sh) – see [Common settings](#common-settings) |
 
@@ -43,6 +44,7 @@ Recommended order: PC and simulation → Raspberry Pi and bring-up → `check.sh
 | Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | 📝 written, mapping measured, not yet driven |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
+| EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
 ## Quick install

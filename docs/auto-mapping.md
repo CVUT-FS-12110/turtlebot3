@@ -21,6 +21,20 @@ cd ~/turtlebot3_ws && colcon build --symlink-install --packages-select auto_mapp
 source install/setup.bash
 ```
 
+## One command (tmux)
+
+[`scripts/mapping.sh`](../scripts/mapping.sh) opens a tmux session on the **PC** with the launch, RViz, keyboard teleop and a `/scan` rate monitor in one window. Start the robot first (bring-up on the Pi, see [robot-raspberry-pi.md](robot-raspberry-pi.md)), then:
+
+```bash
+~/turtlebot3-setup/scripts/mapping.sh            # manual: SLAM + teleop, drive with the keyboard
+~/turtlebot3-setup/scripts/mapping.sh auto       # autonomous: auto_mapper (SLAM + Nav2 + explorer)
+~/turtlebot3-setup/scripts/mapping.sh --sim      # against Gazebo (add use_sim_time)
+```
+
+Teleop keys work only in the teleop pane: `w`/`x` faster forward/backward, `a`/`d` turn, `s` or space stops. Mouse works in the panes. Detach with `Ctrl+b` then `d`, reattach with `tmux attach -t mapping`, end with `mapping.sh stop`. From Windows one click opens it in a new window: `wt wsl -e ~/turtlebot3-setup/scripts/mapping.sh`.
+
+`slam_toolbox` starts with `use_sim_time:=true` unless told otherwise, so on the real robot the script always passes `use_sim_time:=false` explicitly. When running the SLAM command by hand, do the same, or it waits for a Gazebo clock and builds no map.
+
 ## Run
 
 In the simulation:
