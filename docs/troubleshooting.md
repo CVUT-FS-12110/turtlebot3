@@ -103,6 +103,43 @@ The parser is tested on synthetic data. On a real LDS-01 connected to a Windows 
 
 If the link loses data and swapping the cable does not help, use the robust driver that keeps what arrives: [lidar-driver.md](lidar-driver.md).
 
+## The robot jumps in the map or the map rotates
+
+**Is the EKF running?** Only `robot/launch/bringup_ekf.launch.py` starts it; `bringup.launch.py` and the plain `robot.launch.py` do not. Check on the PC:
+
+```bash
+ros2 node list | grep -i ekf
+ros2 topic hz /odometry/filtered
+```
+
+No `ekf_filter_node` and no `/odometry/filtered` means the robot runs on the raw wheel odometry.
+
+**Where the heading comes from.** `turtlebot3_node` takes the heading of `/odom` from the orientation quaternion that the OpenCR computes from its IMU (`odometry.use_imu: true`) and integrates the position along it. If that orientation jumps or drifts, the odometry jumps with it, and SLAM has to correct it with scans that are partly missing (see [lidar-driver.md](lidar-driver.md)). The EKF in [ekf.md](ekf.md) uses only the gyro rate and the wheel speed and ignores the orientation, so it does not follow such jumps.
+
+**Measure which source is wrong** with [`scripts/yaw_check.py`](../scripts/yaw_check.py) (needs ROS 2; run it on the PC while the bring-up runs). It prints the change and the largest single step of each heading source (`/odom`, the `/imu` orientation, the integrated gyro, and the EKF if it runs):
+
+```bash
+python3 ~/turtlebot3-setup/scripts/yaw_check.py 60
+```
+
+1. **Robot standing still for 60 s.** Every source should stay within about a degree. A source that drifts, or an orientation that moves while the gyro integral stays put, is an unreliable heading. Start the bring-up with the robot standing still: the OpenCR calibrates the gyro in the first 5 s.
+2. **One full turn**, slowly (teleop, about 0.3 rad/s), back to the starting direction. A good source ends near 360 degrees; the sources should agree with each other. `steps over 3 deg` greater than 0 is a heading jump, and a jump is what turns the map.
+
+| Result | Meaning |
+|---|---|
+| `/odom` and `/imu` orientation jump or drift, the gyro integral is steady | the firmware orientation is unreliable; run the EKF bring-up |
+| all sources drift the same way while standing still | gyro bias; restart with the robot standing still, calibrate again |
+| all sources agree and are steady, the map still jumps | the cause is in SLAM or in the data, see below |
+
+**Other causes, in this order:**
+
+- **Clocks.** The PC clock drifts in WSL: `chronyc tracking` must show `System time` in milliseconds ([the clocks section](#the-clocks-of-the-pc-and-the-robot-differ)).
+- **Thin scans.** `python3 ~/turtlebot3-setup/scripts/scan_stats.py` should give hundreds of valid rays. A room with few matte surfaces gives the scan matcher too little to hold on to, and the map slips.
+- **Fast turns.** Above about 0.5 rad/s the scans smear; turn slowly and do not drive while turning.
+- **A wrong loop closure** rotates a whole part of the map at once. To test it, set `do_loop_closing: false` in [slam_toolbox.yaml](../auto_mapper/config/slam_toolbox.yaml) and restart the mapping; if the large rotations stop, the loop closing needs stricter limits.
+
+Status: the measuring script is tested on simulated data only; no robot measurements are recorded here yet.
+
 ## Remote PC (WSL2)
 
 - **Gazebo crashes or shows a black window:** try `export LIBGL_ALWAYS_SOFTWARE=1`. If that helps, the problem is the GPU driver.
