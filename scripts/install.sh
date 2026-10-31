@@ -206,7 +206,7 @@ elif [[ -t 0 && -t 1 ]]; then
     if command -v tmux >/dev/null; then
       skip "tmux already installed"
     else
-      run "sudo apt-get update && sudo apt-get install -y tmux"
+      run "sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 install -y tmux"
     fi
     # Replace a previous installer block in ~/.tmux.conf, keep everything else.
     run "touch ~/.tmux.conf && sed -i '/^$TMUX_BEGIN\$/,/^$TMUX_END\$/d' ~/.tmux.conf"
@@ -312,7 +312,7 @@ fi
 
 if [[ $DO_WIFI_PS -eq 1 ]]; then
   step "Wi-Fi power saving puts the radio to sleep between packets, which shows up as lag and dropped ROS topics. A small systemd unit switches it off on $WLAN_IF at every boot."
-  run "sudo apt-get install -y iw"
+  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y iw"
   run "printf '%s\n' '[Unit]' 'Description=Disable Wi-Fi power saving' 'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/sbin/iw dev $WLAN_IF set power_save off' '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/wifi-powersave-off.service >/dev/null"
   run "sudo systemctl daemon-reload && sudo systemctl enable --now wifi-powersave-off.service"
   ok "Wi-Fi power saving off on $WLAN_IF"
@@ -324,7 +324,7 @@ step "ROS 2 is not in Ubuntu's own package lists. This adds the official ROS 2 p
 if dpkg -s ros2-apt-source >/dev/null 2>&1; then
   skip "ROS 2 apt source already configured"
 else
-  run "sudo apt-get update && sudo apt-get install -y software-properties-common curl"
+  run "sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 install -y software-properties-common curl"
   run "sudo add-apt-repository -y universe"
   run 'v=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F tag_name | awk -F\" "{print \$4}") && curl -fL -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${v}/ros2-apt-source_${v}.$(. /etc/os-release && echo $VERSION_CODENAME)_all.deb" && sudo dpkg -i /tmp/ros2-apt-source.deb'
 fi
@@ -340,27 +340,27 @@ if [[ -f $UBUNTU_SOURCES ]] && ! grep -qsE "^[^#]*${VERSION_CODENAME}-updates" /
 fi
 # full-upgrade (not upgrade): plain upgrade holds packages back and leaves versions inconsistent,
 # which later breaks installs with "unmet dependencies" (e.g. liblz4-dev / libzstd-dev).
-run "sudo apt-get update && sudo apt-get full-upgrade -y && sudo apt-get install -f -y"
+run "sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 full-upgrade -y && sudo apt-get -o DPkg::Lock::Timeout=900 install -f -y"
 ok "ROS 2 apt source ready, system updated"
 
 # --- Packages ---------------------------------------------------------------
 
 if [[ $ROLE == pc ]]; then
   step "Installs ROS 2 with its GUI tools (RViz), Gazebo simulation, Cartographer (SLAM) and Nav2 (navigation). This is the big download of the PC setup."
-  run "sudo apt-get install -y git ros-$ROS_DISTRO_NAME-desktop ros-dev-tools \
+  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y git ros-$ROS_DISTRO_NAME-desktop ros-dev-tools \
     ros-$ROS_DISTRO_NAME-ros-gz \
     ros-$ROS_DISTRO_NAME-cartographer ros-$ROS_DISTRO_NAME-cartographer-ros \
     ros-$ROS_DISTRO_NAME-navigation2 ros-$ROS_DISTRO_NAME-nav2-bringup"
 else
   step "Installs only the minimum the robot needs: the ROS 2 base system, the LiDAR driver and the OpenCR communication libraries. SLAM, navigation and RViz run on the PC."
-  run "sudo apt-get install -y git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
+  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
     ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev"
 fi
 
 if [[ $USE_CYCLONE -eq 1 ]]; then
   info "CycloneDDS: the network layer ROBOTIS recommends; PC and robot must use the same one."
-  run "sudo apt-get install -y ros-$ROS_DISTRO_NAME-rmw-cyclonedds-cpp"
+  run "sudo apt-get -o DPkg::Lock::Timeout=900 install -y ros-$ROS_DISTRO_NAME-rmw-cyclonedds-cpp"
 fi
 ok "ROS 2 packages installed"
 
@@ -417,7 +417,7 @@ fi
 
 if [[ $DO_OPENCR -eq 1 ]]; then
   step "Uploads ROBOTIS' prebuilt firmware for the $TB3_MODEL into the OpenCR board over USB (/dev/ttyACM0). The board must be connected and powered. If it fails, enter recovery mode: hold SW2, press Reset, release Reset, release SW2."
-  run "sudo dpkg --add-architecture armhf && sudo apt-get update && sudo apt-get install -y libc6:armhf"
+  run "sudo dpkg --add-architecture armhf && sudo apt-get -o DPkg::Lock::Timeout=900 update && sudo apt-get -o DPkg::Lock::Timeout=900 install -y libc6:armhf"
   run "tmp=\$(mktemp -d) && cd \"\$tmp\" \
     && wget -q https://github.com/ROBOTIS-GIT/OpenCR-Binaries/raw/master/turtlebot3/ROS2/latest/opencr_update.tar.bz2 \
     && tar -xjf opencr_update.tar.bz2 && cd opencr_update \
