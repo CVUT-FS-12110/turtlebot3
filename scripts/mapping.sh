@@ -58,7 +58,14 @@ fi
 # The panes are interactive shells, so ~/.bashrc supplies ROS_DOMAIN_ID, RMW_IMPLEMENTATION and so on.
 SRC="source $WS_DIR/install/setup.bash"
 SLAM_PARAMS='$(ros2 pkg prefix auto_mapper)/share/auto_mapper/config/slam_toolbox.yaml'
-RVIZ_CFG='$(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/rviz/nav2_default_view.rviz'
+# Auto mode runs Nav2, so its own view fits. In manual mode that view has a panel waiting for the Nav2
+# servers ("controller_server service not available"), and the cartographer view subscribes to /scan
+# as reliable, which the LiDAR (best effort) does not serve. Use our own view from this repository.
+if [[ $MODE == auto ]]; then
+  RVIZ_CFG='$(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/rviz/nav2_default_view.rviz'
+else
+  RVIZ_CFG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/auto_mapper/config/mapping.rviz"
+fi
 RVIZ_ARGS=""
 [[ $SIM == true ]] && RVIZ_ARGS=" --ros-args -p use_sim_time:=true"
 
@@ -90,7 +97,7 @@ tmux send-keys -t "$SESSION:shell" "$SRC" C-m
 
 send "$P_SCAN" "ros2 topic hz /scan"
 send "$P_LAUNCH" "$LAUNCH"
-send "$P_RVIZ" "sleep 4 && ros2 run rviz2 rviz2 -d $RVIZ_CFG$RVIZ_ARGS"
+send "$P_RVIZ" "sleep 4 && ros2 run rviz2 rviz2 -d \"$RVIZ_CFG\"$RVIZ_ARGS"
 if [[ $MODE == auto ]]; then
   send "$P_TELEOP" "clear; echo 'Stop: Ctrl+C in the auto_mapper pane. Save the map by hand:'; echo '  mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/room'"
 else

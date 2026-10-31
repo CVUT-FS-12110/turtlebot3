@@ -4,9 +4,12 @@
 
 Use bringup_ekf.launch.py instead for the EKF odometry; it starts the battery monitor too.
 Never run two bring-ups at once.
+
+With the LDS-01 the LiDAR runs on the robust driver (lidar_driver:=stock for the stock one).
 """
 
 import os
+import sys
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -14,13 +17,19 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchD
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from robot_common import lidar_arguments  # noqa: E402
+
 ROBOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def generate_launch_description():
     bringup = get_package_share_directory('turtlebot3_bringup')
+    lidar_declarations, lidar_launch_arguments = lidar_arguments()
 
     return LaunchDescription([
+        *lidar_declarations,
         DeclareLaunchArgument('usb_port', default_value='/dev/ttyACM0',
                               description='Connected USB port with OpenCR'),
         DeclareLaunchArgument('warn_voltage', default_value='11.0',
@@ -30,7 +39,8 @@ def generate_launch_description():
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(bringup, 'launch', 'robot.launch.py')),
-            launch_arguments={'usb_port': LaunchConfiguration('usb_port')}.items()),
+            launch_arguments={'usb_port': LaunchConfiguration('usb_port'),
+                              **lidar_launch_arguments}.items()),
 
         ExecuteProcess(
             cmd=['python3', os.path.join(ROBOT_DIR, 'battery_status.py'), '--ros-args',

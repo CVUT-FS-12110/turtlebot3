@@ -302,6 +302,7 @@ fi
 [[ $DO_SWAP -eq 1 ]] && PLAN+=("Create a 3 GB swap file")
 [[ $ROLE == robot ]] && PLAN+=("Protect SSH from the out-of-memory killer")
 [[ $DO_WIFI_PS -eq 1 ]] && PLAN+=("Disable Wi-Fi power saving")
+PLAN+=("Keep the clock in sync")
 PLAN+=("Add the ROS 2 apt repository")
 PLAN+=("Install ROS 2 $ROS_DISTRO_NAME packages")
 PLAN+=("Download the TurtleBot3 sources")
@@ -380,6 +381,35 @@ if [[ $DO_WIFI_PS -eq 1 ]]; then
   fi
 fi
 
+# --- Clock ------------------------------------------------------------------
+# The PC and the robot stamp their messages with their own clocks. When the clocks differ by more than
+# a few hundredths of a second, SLAM and RViz report "Lookup would require extrapolation into the future"
+# and drop scans. The WSL2 clock in particular drifts (about 1000 ppm, i.e. 0.6 s in 10 minutes).
+
+step "The PC and the robot timestamp their data with their own clocks; if the clocks differ, SLAM drops scans ('extrapolation into the future'). $([[ $IS_WSL -eq 1 ]] && echo "The WSL2 clock drifts on its own, so chrony is set to follow the Windows host clock (Hyper-V) and the usual NTP servers." || echo "This switches on network time synchronisation.")"
+if [[ $IS_WSL -eq 1 ]]; then
+  CHRONY_CONF=/etc/chrony/conf.d/wsl-hyperv.conf
+  if [[ ! -d /run/systemd/system ]]; then
+    warn "systemd is not running in this WSL, so the clock cannot be kept in sync. Add 'systemd=true' under [boot] in /etc/wsl.conf, run 'wsl --shutdown' in Windows and start the installer again."
+  elif [[ ! -e /dev/ptp_hyperv ]]; then
+    warn "/dev/ptp_hyperv is missing (old WSL kernel?). Run 'wsl --update' in Windows. chrony will use NTP servers only."
+    apt_install chrony
+    run "sudo systemctl enable --now chrony"
+  elif grep -qs 'ptp_hyperv' "$CHRONY_CONF" && systemctl is-active --quiet chrony; then
+    skip "chrony already follows the Hyper-V clock"
+  else
+    apt_install chrony
+    run "printf '%s\n' '# Windows host clock via Hyper-V; the WSL2 clock alone drifts by about 1000 ppm.' 'refclock PHC /dev/ptp_hyperv poll 3 dpoll -2 offset 0' | sudo tee $CHRONY_CONF >/dev/null"
+    run "sudo systemctl enable chrony && sudo systemctl restart chrony"
+    ok "chrony follows the Windows host clock; check with: chronyc tracking"
+  fi
+elif [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) == yes ]]; then
+  skip "The clock is already synchronised over the network"
+else
+  run "sudo timedatectl set-ntp true"
+  ok "Network time synchronisation switched on (it can take a minute to take effect; check with: timedatectl)"
+fi
+
 # --- ROS 2 apt repository ---------------------------------------------------
 
 step "ROS 2 is not in Ubuntu's own package lists. This adds the official ROS 2 package source, then refreshes the package lists and fully updates the system, so library versions match and the ROS packages install without dependency conflicts (can take a few minutes)."
@@ -427,7 +457,7 @@ else
   apt_install git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
     ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev \
-    ros-$ROS_DISTRO_NAME-robot-localization
+    ros-$ROS_DISTRO_NAME-robot-localization python3-serial
 fi
 
 if [[ $USE_CYCLONE -eq 1 ]]; then
