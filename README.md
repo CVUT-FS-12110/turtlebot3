@@ -46,7 +46,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
-| Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | 📝 written, tested with simulated data, not yet run on the robot |
+| Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
 ## Quick install

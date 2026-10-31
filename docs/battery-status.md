@@ -81,4 +81,4 @@ cd ~/turtlebot3-setup/robot && python3 -m unittest discover -s test
 
 ## Status
 
-Tested on the PC with a simulated `/battery_state` (all colours, no-data state, shutdown, tmux rendering). Not yet run on the robot, so the real voltage and percentage values from the OpenCR, and the two limits, still need checking.
+The display is checked on the robot (voltage and percentage from the OpenCR in the tmux status bar). The warning and critical limits (11.0 V and 10.5 V) are my estimate for a 3-cell LiPo and are not verified against the board's own low-battery alarm.
