@@ -28,7 +28,7 @@ export TURTLEBOT3_MODEL=burger
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
 ```
 
-The launch file starts `robot.launch.py` with `odometry.publish_tf` switched off in a temporary copy of the installed parameters, so the EKF is the only publisher of `odom → base_footprint`. The Pi needs no build.
+It also starts the battery monitor for the tmux status bar ([battery-status.md](battery-status.md)). The launch file starts `robot.launch.py` with `odometry.publish_tf` switched off in a temporary copy of the installed parameters, so the EKF is the only publisher of `odom → base_footprint`. The Pi needs no build.
 
 ## PC (WSL2)
 

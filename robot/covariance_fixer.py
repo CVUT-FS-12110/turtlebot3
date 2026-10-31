@@ -48,9 +48,7 @@ def main():
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.try_shutdown()   # Ctrl+C reaches this process twice under ros2 launch
 
 
 if __name__ == '__main__':

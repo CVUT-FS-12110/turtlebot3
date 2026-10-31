@@ -52,7 +52,7 @@ Nothing is built on the Pi for this repository: `robot/` contains only a launch 
 
 | What changed | ROBOT action |
 |---|---|
-| `robot/` (EKF launch, config, covariance fixer) | nothing, restart the bring-up |
+| `robot/` (bring-up launch files, EKF config, covariance fixer, battery monitor) | nothing, restart the bring-up |
 | `scripts/install.sh` adds a robot package | `sudo apt install <package>`, for example `ros-jazzy-robot-localization` for the EKF |
 | `scripts/check.sh`, docs | nothing |
 
@@ -79,10 +79,12 @@ Inside tmux, so an SSH drop does not stop the robot:
 ```bash
 tmux new -A -s robot
 export TURTLEBOT3_MODEL=burger
-ros2 launch turtlebot3_bringup robot.launch.py
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 ```
 
-Or with the EKF odometry (**instead of**, never together with, the line above; see [ekf.md](ekf.md)):
+This is the normal bring-up plus the battery voltage in the tmux status bar ([battery-status.md](battery-status.md)). The plain `ros2 launch turtlebot3_bringup robot.launch.py` works the same, without the battery item.
+
+Or with the EKF odometry (**instead of**, never together with, the lines above; it shows the battery too, see [ekf.md](ekf.md)):
 
 ```bash
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py

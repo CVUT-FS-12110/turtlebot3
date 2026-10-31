@@ -15,6 +15,7 @@ Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT**
 | 5 | PC (+ ROBOT) | Drive the robot by hand with the keyboard (PC) or the Evolveo gamepad (plugged into the Pi) | [docs/gamepad.md](docs/gamepad.md), [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
+| 8 | ROBOT | Optional: show the battery voltage in the tmux status bar | [docs/battery-status.md](docs/battery-status.md) |
 
 From the second day on, and for updating both machines from GitHub, use [docs/workflow.md](docs/workflow.md): what to run on the PC, what on the Raspberry Pi, and in which order. When something does not work, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
@@ -45,6 +46,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
+| Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
 ## Quick install
