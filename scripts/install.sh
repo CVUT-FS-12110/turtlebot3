@@ -387,28 +387,9 @@ fi
 # and drop scans. The WSL2 clock in particular drifts (about 1000 ppm, i.e. 0.6 s in 10 minutes).
 
 step "The PC and the robot timestamp their data with their own clocks; if the clocks differ, SLAM drops scans ('extrapolation into the future'). $([[ $IS_WSL -eq 1 ]] && echo "The WSL2 clock drifts on its own, so chrony is set to follow the Windows host clock (Hyper-V) and the usual NTP servers." || echo "This switches on network time synchronisation.")"
-if [[ $IS_WSL -eq 1 ]]; then
-  CHRONY_CONF=/etc/chrony/conf.d/wsl-hyperv.conf
-  if [[ ! -d /run/systemd/system ]]; then
-    warn "systemd is not running in this WSL, so the clock cannot be kept in sync. Add 'systemd=true' under [boot] in /etc/wsl.conf, run 'wsl --shutdown' in Windows and start the installer again."
-  elif [[ ! -e /dev/ptp_hyperv ]]; then
-    warn "/dev/ptp_hyperv is missing (old WSL kernel?). Run 'wsl --update' in Windows. chrony will use NTP servers only."
-    apt_install chrony
-    run "sudo systemctl enable --now chrony"
-  elif grep -qs 'ptp_hyperv' "$CHRONY_CONF" && systemctl is-active --quiet chrony; then
-    skip "chrony already follows the Hyper-V clock"
-  else
-    apt_install chrony
-    run "printf '%s\n' '# Windows host clock via Hyper-V; the WSL2 clock alone drifts by about 1000 ppm.' 'refclock PHC /dev/ptp_hyperv poll 3 dpoll -2 offset 0' | sudo tee $CHRONY_CONF >/dev/null"
-    run "sudo systemctl enable chrony && sudo systemctl restart chrony"
-    ok "chrony follows the Windows host clock; check with: chronyc tracking"
-  fi
-elif [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) == yes ]]; then
-  skip "The clock is already synchronised over the network"
-else
-  run "sudo timedatectl set-ntp true"
-  ok "Network time synchronisation switched on (it can take a minute to take effect; check with: timedatectl)"
-fi
+# The same steps run on their own with scripts/fix-clock.sh, for machines that are installed already.
+run "bash '$REPO_DIR/scripts/fix-clock.sh'"
+ok "Clock synchronisation set up; check it any time with: scripts/fix-clock.sh --check"
 
 # --- ROS 2 apt repository ---------------------------------------------------
 

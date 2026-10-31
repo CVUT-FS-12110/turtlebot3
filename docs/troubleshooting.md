@@ -35,20 +35,13 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 
 **Symptom:** RViz or SLAM print `Lookup would require extrapolation into the future` or `Message Filter dropping message ... queue is full`, the map is smeared or scans are missing. The PC and the robot stamp their data with their own clocks, and a difference of more than a few hundredths of a second is enough. The WSL2 clock is the usual culprit: it drifts by about 1000 ppm, which is 0.6 s in 10 minutes, and it jumps after Windows sleeps.
 
-**Measure the difference** on the PC (open a connection first, so typing the password does not spoil the result):
+**Measure the difference** on the PC with [`scripts/clock_offset.sh`](../scripts/clock_offset.sh). It opens one SSH connection (the password is asked once), asks the robot for its time five times, and prints the offset of every sample and the median:
 
 ```bash
-ssh -fNM -S /tmp/tb3-ssh turtle@turtlebot.local
-```
-```bash
-t0=$(date +%s.%N); r=$(ssh -S /tmp/tb3-ssh turtle@turtlebot.local 'date +%s.%N' | tr -d '
- '); t1=$(date +%s.%N); echo "PC before: [$t0]"; echo "Pi: [$r]"; echo "PC after: [$t1]"
-```
-```bash
-ssh -S /tmp/tb3-ssh -O exit turtle@turtlebot.local
+~/turtlebot3-setup/scripts/clock_offset.sh
 ```
 
-The difference is `Pi - (PC before + PC after) / 2`; half of `PC after - PC before` is the measuring error. Under 0.02 s is fine. A difference that grows between two measurements a few minutes apart is drift.
+The offset is `robot - (PC before + PC after) / 2`; half of the round trip is the error of one sample. Under 0.02 s is fine; a positive value means the robot clock is ahead of the PC. Repeat it after a few minutes and after `wsl --shutdown`: a difference that grows is drift, one that returns after a restart means WSL takes a wrong time from Windows.
 
 **PC (WSL2):** `scripts/install.sh` sets chrony up to follow the Windows host clock (Hyper-V) and NTP. On an existing setup do the same by hand:
 
