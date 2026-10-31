@@ -101,6 +101,8 @@ The last line also counts bytes: a healthy LDS-01 sends about 12600 bytes per se
 
 The parser is tested on synthetic data. On a real LDS-01 connected to a Windows PC it showed 4.8 revolutions per second and 300 rpm, but only about 40 of the 60 packets per revolution, so a lossy link is not ruled out.
 
+If the link loses data and swapping the cable does not help, use the robust driver that keeps what arrives: [lidar-driver.md](lidar-driver.md).
+
 ## Remote PC (WSL2)
 
 - **Gazebo crashes or shows a black window:** try `export LIBGL_ALWAYS_SOFTWARE=1`. If that helps, the problem is the GPU driver.

@@ -16,6 +16,7 @@ Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT**
 | 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
 | 8 | ROBOT | Optional: show the battery voltage in the tmux status bar | [docs/battery-status.md](docs/battery-status.md) |
+| 9 | ROBOT | If the LiDAR gives few points or 2.5 scans per second: robust LDS-01 driver | [docs/lidar-driver.md](docs/lidar-driver.md) |
 
 From the second day on, and for updating both machines from GitHub, use [docs/workflow.md](docs/workflow.md): what to run on the PC, what on the Raspberry Pi, and in which order. When something does not work, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
@@ -47,6 +48,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
 | Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
+| Robust LDS-01 driver (`robot/lds01_driver.py`) | [docs/lidar-driver.md](docs/lidar-driver.md) | 📝 tested against a simulated lossy sensor, not yet on the robot |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
 ## Quick install
