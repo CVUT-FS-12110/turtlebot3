@@ -64,6 +64,43 @@ Check with `chronyc tracking`: the reference is `PHC0` and `System time` is in m
 
 **ROBOT (Pi):** `timedatectl` must say `System clock synchronized: yes`; if not, `sudo timedatectl set-ntp true` (the Pi has no battery-backed clock and needs a network connection with Internet access after every power-up). The Pi was within 0.03 s of NTP time when measured.
 
+## The LiDAR gives few valid points or only 2.5 scans per second
+
+The LDS-01 cannot be configured (fixed firmware, no gain or power setting), so find out first whether the sensor, the link or the surroundings are at fault. [`scripts/lds01_check.py`](../scripts/lds01_check.py) reads the sensor straight from its serial port, without ROS, and prints per revolution the rotation speed, how many of the 60 packets arrived and how many of the 360 readings are valid:
+
+```
+revolution 7: 60/60 packets, 214/360 valid, 300 rpm
+```
+
+**ROBOT (Pi):** stop the bring-up first (it holds the port), then:
+
+```bash
+sudo apt install python3-serial
+python3 ~/turtlebot3-setup/scripts/lds01_check.py /dev/ttyUSB0
+```
+
+**PC (Windows):** plug the LiDAR with its USB adapter into the PC. Windows installs the CP2102 driver itself; the COM port is in Device Manager. In PowerShell:
+
+```powershell
+py -m pip install pyserial
+py scripts\lds01_check.py COM3
+```
+
+Reading the result (the summary line at the end gives the means):
+
+| Result | Meaning |
+|---|---|
+| about 300 rpm, 60 of 60 packets, about 5 revolutions per second | sensor and link are fine; few valid readings then come from the surfaces (fabric, dark or glossy), and a lower rate in ROS comes from the driver or the Pi |
+| 300 rpm, but fewer than 60 packets | the link loses data: try another cable, USB port or adapter |
+| well below 300 rpm or 0 | the motor does not get enough power or is blocked |
+| few valid readings with 60 of 60 packets and a white matte box 0.5 m in front | the sensor or its lens is faulty or dirty |
+
+Run it on both machines in the same place: 5 revolutions per second and 60 of 60 packets on the PC but 2.5 scans per second in `ros2 topic hz /scan` on the Pi points to the Pi side (USB, CPU or driver), not to the LiDAR. Surfaces that return no light: matte fabric, black or glossy lacquer, glass and mirrors; walls and cardboard work.
+
+The last line also counts bytes: a healthy LDS-01 sends about 12600 bytes per second (60 packets of 42 bytes, 5 times a second) and almost none of them are discarded. Clearly fewer bytes mean data lost on the way; many discarded bytes mean corrupted data (cable, adapter, interference). This matters for ROS: the driver cuts a revolution into packets at fixed positions, so a single lost packet spoils the whole revolution and the driver only recovers at the next one. That gives revolutions with a handful of valid points and a scan rate of 2.5 Hz instead of 5 Hz.
+
+The parser is tested on synthetic data. On a real LDS-01 connected to a Windows PC it showed 4.8 revolutions per second and 300 rpm, but only about 40 of the 60 packets per revolution, so a lossy link is not ruled out.
+
 ## Remote PC (WSL2)
 
 - **Gazebo crashes or shows a black window:** try `export LIBGL_ALWAYS_SOFTWARE=1`. If that helps, the problem is the GPU driver.
