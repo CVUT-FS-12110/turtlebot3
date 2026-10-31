@@ -31,6 +31,39 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 - **Topics lag or drop over Wi-Fi:** disable Wi-Fi power saving (`iw dev wlan0 get power_save` should say `off`), move to 5 GHz, and keep the PC on the same access point.
 - **`ros2 launch` cannot find the LiDAR:** check `ls /dev/ttyUSB*` and the `LDS_MODEL` variable (`LDS-01` for your robot).
 
+## The clocks of the PC and the robot differ
+
+**Symptom:** RViz or SLAM print `Lookup would require extrapolation into the future` or `Message Filter dropping message ... queue is full`, the map is smeared or scans are missing. The PC and the robot stamp their data with their own clocks, and a difference of more than a few hundredths of a second is enough. The WSL2 clock is the usual culprit: it drifts by about 1000 ppm, which is 0.6 s in 10 minutes, and it jumps after Windows sleeps.
+
+**Measure the difference** on the PC (open a connection first, so typing the password does not spoil the result):
+
+```bash
+ssh -fNM -S /tmp/tb3-ssh turtle@turtlebot.local
+```
+```bash
+t0=$(date +%s.%N); r=$(ssh -S /tmp/tb3-ssh turtle@turtlebot.local 'date +%s.%N' | tr -d '
+ '); t1=$(date +%s.%N); echo "PC before: [$t0]"; echo "Pi: [$r]"; echo "PC after: [$t1]"
+```
+```bash
+ssh -S /tmp/tb3-ssh -O exit turtle@turtlebot.local
+```
+
+The difference is `Pi - (PC before + PC after) / 2`; half of `PC after - PC before` is the measuring error. Under 0.02 s is fine. A difference that grows between two measurements a few minutes apart is drift.
+
+**PC (WSL2):** `scripts/install.sh` sets chrony up to follow the Windows host clock (Hyper-V) and NTP. On an existing setup do the same by hand:
+
+```bash
+sudo apt install chrony
+```
+```bash
+printf '%s
+' 'refclock PHC /dev/ptp_hyperv poll 3 dpoll -2 offset 0' | sudo tee /etc/chrony/conf.d/wsl-hyperv.conf
+sudo systemctl enable chrony && sudo systemctl restart chrony
+```
+Check with `chronyc tracking`: the reference is `PHC0` and `System time` is in milliseconds or less. It needs `systemd=true` under `[boot]` in `/etc/wsl.conf`, and `/dev/ptp_hyperv` must exist (otherwise `wsl --update` in Windows). `chronyc makestep` fails with `500 Failure` here; the clock is corrected by the restart. After Windows sleeps, check `chronyc tracking` before driving.
+
+**ROBOT (Pi):** `timedatectl` must say `System clock synchronized: yes`; if not, `sudo timedatectl set-ntp true` (the Pi has no battery-backed clock and needs a network connection with Internet access after every power-up). The Pi was within 0.03 s of NTP time when measured.
+
 ## Remote PC (WSL2)
 
 - **Gazebo crashes or shows a black window:** try `export LIBGL_ALWAYS_SOFTWARE=1`. If that helps, the problem is the GPU driver.

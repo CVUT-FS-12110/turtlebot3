@@ -92,12 +92,15 @@ ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
 
 ### 2. PC (WSL2)
 
-Check that the robot's data arrive (`/scan` must run at about 5 Hz):
+Check that the robot's data arrive (`/scan` must run at about 5 Hz) and that the PC clock is in sync (after Windows sleeps the WSL clock can be off; the `System time` line must be in milliseconds):
 
 ```bash
 ros2 daemon stop
 ros2 topic hz /scan
+chronyc tracking
 ```
+
+If the clocks of the PC and the robot differ, RViz prints `extrapolation into the future` and SLAM drops scans, see [troubleshooting.md](troubleshooting.md#the-clocks-of-the-pc-and-the-robot-differ).
 
 Then start the mapping, see [auto-mapping.md](auto-mapping.md):
 
