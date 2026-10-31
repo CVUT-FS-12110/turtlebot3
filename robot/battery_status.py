@@ -17,7 +17,7 @@ from sensor_msgs.msg import BatteryState
 
 def format_status(voltage, percentage, warn_voltage, critical_voltage):
     """One tmux status line for a battery reading; percentage is 0-1 as in sensor_msgs/BatteryState."""
-    # A healthy battery uses the status bar's own colours (default), only bold, so it blends in. The
+    # A healthy battery is bold black text on the bar's own background, so the box blends in. The
     # warning states set both colours: the default tmux bar is green, and plain green text on it
     # would be invisible.
     if voltage < critical_voltage:
@@ -25,7 +25,7 @@ def format_status(voltage, percentage, warn_voltage, critical_voltage):
     elif voltage < warn_voltage:
         style, label = 'fg=black,bg=yellow', 'Battery:'
     else:
-        style, label = 'default,bold', 'Battery:'
+        style, label = 'fg=black,bold', 'Battery:'
     percent = percentage * 100 if percentage <= 1.0 else percentage
     return f'#[{style}]{label} {voltage:.1f} V {percent:.0f} %#[default]'
 
