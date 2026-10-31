@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the battery voltage from /battery_state to a file for the tmux status bar.
 
-The file holds one line with tmux style codes, for example "bat 11.8 V 87 %" in green, yellow or red.
+The file holds one line with tmux style codes, for example "Battery: 11.8 V 87 %", yellow or red when it runs low.
 tmux shows it with #(cat /tmp/tb3_battery). One small subscriber costs far less on a Raspberry Pi 3B+
 than calling `ros2 topic echo` every few seconds.
 """
@@ -17,20 +17,21 @@ from sensor_msgs.msg import BatteryState
 
 def format_status(voltage, percentage, warn_voltage, critical_voltage):
     """One tmux status line for a battery reading; percentage is 0-1 as in sensor_msgs/BatteryState."""
-    # Foreground and background are always set: the default tmux status bar is green, so a plain
-    # green text on it would be invisible.
+    # A healthy battery uses the status bar's own colours (default), only bold, so it blends in. The
+    # warning states set both colours: the default tmux bar is green, and plain green text on it
+    # would be invisible.
     if voltage < critical_voltage:
-        style, label = 'fg=white,bg=red,bold', 'BAT LOW'
+        style, label = 'fg=white,bg=red,bold', 'Battery LOW:'
     elif voltage < warn_voltage:
-        style, label = 'fg=black,bg=yellow', 'bat'
+        style, label = 'fg=black,bg=yellow', 'Battery:'
     else:
-        style, label = 'fg=black,bg=colour120', 'bat'
+        style, label = 'default,bold', 'Battery:'
     percent = percentage * 100 if percentage <= 1.0 else percentage
     return f'#[{style}]{label} {voltage:.1f} V {percent:.0f} %#[default]'
 
 
 def format_stale(age):
-    return f'#[fg=white,bg=colour240]bat no data ({age:.0f} s)#[default]'
+    return f'#[fg=white,bg=colour240]Battery: no data ({age:.0f} s)#[default]'
 
 
 class BatteryStatus(Node):
