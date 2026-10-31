@@ -130,6 +130,8 @@ Choose role `robot`. It can create a swap file, disable automatic apt upgrades, 
 
 ## 3. Flash the OpenCR
 
+**This step is required.** The OpenCR does not ship with the right firmware (it may be empty or carry a ROS 1 build). Without the ROS 2 firmware `turtlebot3_node` opens `/dev/ttyACM0` but then logs `Failed connection with Devices` and dies with `RCLError: could not create publisher: rcl node's context is invalid`. On the robot, flashing `burger.opencr` (V230127R1) fixed exactly this; afterwards the node calibrated the gyro and created all publishers.
+
 The installer does this if you answer yes. Manually:
 
 ```bash

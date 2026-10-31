@@ -17,6 +17,7 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 |---|---|
 | `/dev/ttyACM0` missing | OpenCR power switch off, bad USB cable, or the udev rules are not installed. Check with `ls /dev/ttyACM*` and `dmesg \| tail`. |
 | `Permission denied` on the port | The user is not in `dialout`. Log out and back in after the installer. |
+| `Failed connection with Devices`, then `RCLError ... context is invalid` | The OpenCR has no ROS 2 firmware (port opens, but the board does not answer). Flash `burger.opencr`, see [robot-raspberry-pi.md](robot-raspberry-pi.md#3-flash-the-opencr). Also check the power switch and battery. |
 | Flashing fails | Recovery mode: hold **PUSH SW2**, press **Reset**, release **Reset**, release **SW2**. Make sure `libc6:armhf` is installed. |
 | Motors do not move, wheels free | Dynamixel power not enabled, or the battery is empty. Test with **SW1**/**SW2** on the board. |
 | Robot turns slowly by itself | The gyro was calibrated while the robot was moving. Restart it and keep it still for the first seconds. |

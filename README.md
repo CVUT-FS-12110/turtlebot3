@@ -38,7 +38,7 @@ Recommended order: PC and simulation → Raspberry Pi and bring-up → `check.sh
 |---|---|---|
 | Remote PC (WSL2) + simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) | ✅ working |
 | OpenCR firmware (sources, features) | [docs/opencr-firmware.md](docs/opencr-firmware.md) | 📖 overview only |
-| Raspberry Pi, OpenCR flashing, bring-up | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) | 📝 written, not tested on the robot |
+| Raspberry Pi, OpenCR flashing, bring-up | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) | ✅ working (bring-up, motors and LiDAR tested on the robot) |
 | Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | 📝 written, mapping measured, not yet driven |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
