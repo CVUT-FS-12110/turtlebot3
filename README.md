@@ -2,22 +2,21 @@
 
 Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Burger with ROS 2 Jazzy.
 
-## Where to start
+## Getting it running, in order
 
-| I want to… | Go to |
-|---|---|
-| Know what to run on the PC and what on the Raspberry Pi, and how to update both from GitHub | [docs/workflow.md](docs/workflow.md) |
-| Install everything quickly on the PC or the robot | [Quick install](#quick-install) (`scripts/install.sh`) |
-| Set up the Windows 11 PC (WSL2) and try the simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) |
-| Set up the Raspberry Pi, flash the OpenCR and bring up the robot | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) |
-| Find out what the OpenCR firmware does and where its sources are | [docs/opencr-firmware.md](docs/opencr-firmware.md) |
-| Drive the robot with the Evolveo Fighter F1 gamepad | [docs/gamepad.md](docs/gamepad.md) |
-| Let the robot map a room on its own (SLAM + frontier exploration) | [docs/auto-mapping.md](docs/auto-mapping.md) |
-| Filter the odometry with an EKF (better maps) | [docs/ekf.md](docs/ekf.md) |
-| Fix a problem (no topics, OpenCR not found, lag over Wi-Fi) | [docs/troubleshooting.md](docs/troubleshooting.md) |
-| Check that the setup and the PC–robot link work | [`scripts/check.sh`](scripts/check.sh) – see [Common settings](#common-settings) |
+Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT** (Raspberry Pi). Do them in this order; each one is checked before the next.
 
-Recommended order: PC and simulation → Raspberry Pi and bring-up → `check.sh` → SLAM and navigation.
+| # | Machine | Step | Guide |
+|---|---|---|---|
+| 1 | PC | Set up WSL2, install ROS 2 Jazzy, build the TurtleBot3 workspace and try the simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md), installer: [Quick install](#quick-install) |
+| 2 | ROBOT | Prepare the SD card and the Raspberry Pi, install ROS 2 and build the workspace | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) |
+| 3 | ROBOT | Flash the ROS 2 firmware to the OpenCR and bring up the robot (motors, LiDAR) | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md), [docs/opencr-firmware.md](docs/opencr-firmware.md) |
+| 4 | both | Check that the PC sees the robot's topics (same `ROS_DOMAIN_ID`, CycloneDDS, multicast) | [`scripts/check.sh`](scripts/check.sh), [Common settings](#common-settings) |
+| 5 | PC (+ ROBOT) | Drive the robot by hand with the keyboard (PC) or the Evolveo gamepad (plugged into the Pi) | [docs/gamepad.md](docs/gamepad.md), [docs/auto-mapping.md](docs/auto-mapping.md) |
+| 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
+| 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
+
+From the second day on, and for updating both machines from GitHub, use [docs/workflow.md](docs/workflow.md): what to run on the PC, what on the Raspberry Pi, and in which order. When something does not work, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Hardware
 
