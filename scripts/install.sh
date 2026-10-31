@@ -221,9 +221,9 @@ set -g pane-border-format " #{pane_index}: #{pane_current_command} "
 # Status bar: session, ROS settings, load average (a busy load shows that a build is still alive).
 set -g status-interval 5
 set -g status-left-length 20
-set -g status-right-length 90
+set -g status-right-length 120
 set -g status-left "[#S] "
-set -g status-right '#(echo "ROS_DOMAIN_ID ${ROS_DOMAIN_ID:-?}, ${TURTLEBOT3_MODEL:-?}") | load #(cut -d" " -f1-3 /proc/loadavg) | #H %H:%M'
+set -g status-right '#(cat /tmp/tb3_battery 2>/dev/null) | #(echo "ROS_DOMAIN_ID ${ROS_DOMAIN_ID:-?}, ${TURTLEBOT3_MODEL:-?}") | load #(cut -d" " -f1-3 /proc/loadavg) | #H %H:%M'
 EOF
 TMUX_BLOCK="$TMUX_BEGIN"$'\n'"$TMUX_CONF""$TMUX_END"
 

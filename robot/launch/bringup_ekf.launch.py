@@ -3,7 +3,8 @@
     ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
 
 It starts the normal bring-up with the odom -> base_footprint transform of turtlebot3_node switched off
-(the EKF publishes it instead), the covariance fixer and robot_localization's ekf_node.
+(the EKF publishes it instead), the covariance fixer, robot_localization's ekf_node and the battery
+monitor for the tmux status bar.
 """
 
 import os
@@ -40,6 +41,10 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('usb_port', default_value='/dev/ttyACM0',
                               description='Connected USB port with OpenCR'),
+        DeclareLaunchArgument('warn_voltage', default_value='11.0',
+                              description='Battery voltage [V] below which the tmux status turns yellow'),
+        DeclareLaunchArgument('critical_voltage', default_value='10.5',
+                              description='Battery voltage [V] below which the tmux status turns red'),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(bringup, 'launch', 'robot.launch.py')),
@@ -47,6 +52,11 @@ def generate_launch_description():
                               'usb_port': LaunchConfiguration('usb_port')}.items()),
 
         ExecuteProcess(cmd=['python3', os.path.join(ROBOT_DIR, 'covariance_fixer.py')], output='screen'),
+        ExecuteProcess(
+            cmd=['python3', os.path.join(ROBOT_DIR, 'battery_status.py'), '--ros-args',
+                 '-p', ['warn_voltage:=', LaunchConfiguration('warn_voltage')],
+                 '-p', ['critical_voltage:=', LaunchConfiguration('critical_voltage')]],
+            output='screen'),
 
         Node(package='robot_localization', executable='ekf_node', name='ekf_filter_node',
              output='screen', parameters=[os.path.join(ROBOT_DIR, 'config', 'ekf.yaml')]),
