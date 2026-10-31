@@ -6,6 +6,7 @@ Setup notes for running a [TurtleBot3](https://www.turtlebot.com/turtlebot3/) Bu
 
 | I want to… | Go to |
 |---|---|
+| Know what to run on the PC and what on the Raspberry Pi, and how to update both from GitHub | [docs/workflow.md](docs/workflow.md) |
 | Install everything quickly on the PC or the robot | [Quick install](#quick-install) (`scripts/install.sh`) |
 | Set up the Windows 11 PC (WSL2) and try the simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) |
 | Set up the Raspberry Pi, flash the OpenCR and bring up the robot | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) |
