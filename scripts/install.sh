@@ -439,7 +439,8 @@ else
   apt_install git ros-$ROS_DISTRO_NAME-ros-base ros-dev-tools \
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
     ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev \
-    ros-$ROS_DISTRO_NAME-robot-localization python3-serial
+    ros-$ROS_DISTRO_NAME-robot-localization python3-serial \
+    ros-$ROS_DISTRO_NAME-joy ros-$ROS_DISTRO_NAME-teleop-twist-joy joystick
   if [[ $LDS_MODEL == RPLIDAR-A1 ]]; then
     info "RPLiDAR A1M8: the driver is the rplidar_ros package."
     apt_install ros-$ROS_DISTRO_NAME-rplidar-ros

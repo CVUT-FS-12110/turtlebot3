@@ -3,13 +3,14 @@
 
     python3 scan_stats.py [seconds]
 
-Prints how many scans arrived (a healthy LDS-01 gives 5 per second) and, for a few of them, how many of
+Prints how many scans arrived (a healthy LDS-01 gives 5 per second, an RPLiDAR A1M8 about 7; the PC's LDS_MODEL tells which) and, for a few of them, how many of
 the 360 rays are valid and where the nearest and farthest readings are. With a robot standing in the
 middle of a room with matte walls a good scan has hundreds of valid rays; a handful means the LiDAR
 link loses data or the surfaces return no light (see docs/troubleshooting.md).
 """
 
 import math
+import os
 import sys
 
 import rclpy
@@ -27,7 +28,8 @@ def main():
     end = node.get_clock().now().nanoseconds + int(seconds * 1e9)
     while node.get_clock().now().nanoseconds < end:
         rclpy.spin_once(node, timeout_sec=0.2)
-    print(f'scans in {seconds:g} s: {len(scans)} ({len(scans) / seconds:.1f} per second, healthy: about 5)')
+    healthy = 'about 7' if os.environ.get('LDS_MODEL') == 'RPLIDAR-A1' else 'about 5'
+    print(f'scans in {seconds:g} s: {len(scans)} ({len(scans) / seconds:.1f} per second, healthy: {healthy})')
     valid_counts = []
     for m in scans:
         valid_counts.append(sum(1 for x in m.ranges if math.isfinite(x) and m.range_min <= x <= m.range_max))

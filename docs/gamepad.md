@@ -77,23 +77,40 @@ Use L1 (button 6) as `enable_button`.
 
 ## Drive the robot
 
-Start the bring-up first (`ros2 launch turtlebot3_bringup robot.launch.py`), then:
+The gamepad runs on the **ROBOT** (the receiver is in the Pi) and publishes `/cmd_vel`, the same topic as the keyboard teleop on the PC. [`robot/launch/gamepad.launch.py`](../robot/launch/gamepad.launch.py) starts `joy_node` and `teleop_twist_joy` with the left stick (axis 1 forward/back, axis 0 turn) and an enable button. The easiest way is to start it together with the bring-up:
 
 ```bash
-sudo apt install ros-jazzy-joy ros-jazzy-teleop-twist-joy
-ros2 run joy joy_node
-ros2 run teleop_twist_joy teleop_node --ros-args \
-  -p enable_button:=6 \
-  -p axis_linear.x:=1 -p axis_angular.yaw:=0 \
-  -p scale_linear.x:=0.2 -p scale_angular.yaw:=1.0
+sudo apt install ros-jazzy-joy ros-jazzy-teleop-twist-joy joystick
+```
+```bash
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py gamepad:=true
 ```
 
-- `enable_button:=6` assumes L1 (LB) is index 6 (see the measured table). Confirm it first. The indices in `/joy` can differ from `jstest`, so check with `ros2 topic echo /joy`.
-- The robot moves only while you hold `enable_button`. Release it to stop.
-- Test with the wheels lifted and watch `ros2 topic echo /cmd_vel` to see whether stick up gives a positive `linear.x` before driving on the floor.
-- Burger limits are about 0.22 m/s and 2.84 rad/s, so start slow.
-- Set `axis_linear.x`, `axis_angular.yaw` and `enable_button` from your mapping table.
-- If `ros2 topic info /cmd_vel` shows `geometry_msgs/msg/TwistStamped`, add `-p publish_stamped_twist:=true`.
+(The installer installs the packages on new robots.) `bringup_ekf.launch.py` takes `gamepad:=true` too. To start only the gamepad next to a bring-up that already runs, use `ros2 launch ~/turtlebot3-setup/robot/launch/gamepad.launch.py`.
+
+Arguments (add them to the same command, for example `gamepad:=true enable_button:=4`):
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `enable_button` | `6` | button held to drive: `6` = L1 in D-input mode (measured), `4` = LB in X-input mode (Xbox 360 numbering, not measured on this pad) |
+| `scale_linear` | `0.15` | forward speed in m/s at full stick (Burger maximum is about 0.22) |
+| `scale_angular` | `1.0` | turning speed in rad/s at full stick (Burger maximum is about 2.84) |
+| `stamped` | `false` | `true` if `/cmd_vel` is `TwistStamped` |
+
+- The robot moves only while you hold the enable button. Release it to stop.
+- **Check once with the wheels in the air** before driving on the floor. Hold the enable button, push the stick up and watch `ros2 topic echo /cmd_vel`: `linear.x` must be positive, and stick left must give a positive `angular.z` (the robot turns left).
+- **`/cmd_vel` type:** `turtlebot3_node` takes plain `Twist` unless its parameter `enable_stamped_cmd_vel` is true. Check what the robot expects with `ros2 topic info /cmd_vel -v` (the subscription type). If it is `TwistStamped`, add `stamped:=true`.
+- **No reaction:** `ros2 topic echo /joy` shows whether the pad arrives (`buttons[]` changes when you press L1). If the index of L1 differs from `enable_button`, use the one you see.
+
+## Manual mapping with the gamepad
+
+Mapping does not change: it runs on the PC and listens to `/cmd_vel`, whoever publishes it. Start the robot with `gamepad:=true`, then on the **PC**:
+
+```bash
+~/turtlebot3-setup/scripts/mapping.sh
+```
+
+Drive with the gamepad (hold the enable button) and watch the map grow in RViz. The keyboard teleop pane of `mapping.sh` stays available; it publishes only when you press a key, so the two do not fight, but use one at a time. Drive slowly (the default 0.15 m/s) so SLAM can match the scans; turns are the hard part, so make them gently.
 
 ## Problems
 

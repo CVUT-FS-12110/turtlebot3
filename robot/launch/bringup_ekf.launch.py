@@ -4,7 +4,7 @@
 
 It starts the normal bring-up with the odom -> base_footprint transform of turtlebot3_node switched off
 (the EKF publishes it instead), the covariance fixer, robot_localization's ekf_node and the battery
-monitor for the tmux status bar.
+monitor for the tmux status bar. gamepad:=true also starts the gamepad teleop (gamepad.launch.py).
 """
 
 import os
@@ -21,7 +21,7 @@ from launch_ros.actions import Node
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from robot_common import lidar_arguments  # noqa: E402
+from robot_common import gamepad_actions, lidar_arguments  # noqa: E402
 
 ROBOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -46,6 +46,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         *lidar_declarations,
+        *gamepad_actions(),
         DeclareLaunchArgument('usb_port', default_value='/dev/ttyACM0',
                               description='Connected USB port with OpenCR'),
         DeclareLaunchArgument('warn_voltage', default_value='11.0',

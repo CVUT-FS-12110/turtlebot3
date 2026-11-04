@@ -3,10 +3,24 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 
 ROBOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def gamepad_actions():
+    """`gamepad:=true` also starts gamepad.launch.py (its own arguments, such as enable_button:=4, can
+    be given on the same command line)."""
+    return [
+        DeclareLaunchArgument('gamepad', default_value='false',
+                              description='true: also start the gamepad teleop (see gamepad.launch.py)'),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(ROBOT_DIR, 'launch', 'gamepad.launch.py')),
+            condition=IfCondition(LaunchConfiguration('gamepad'))),
+    ]
 
 
 def lidar_arguments():

@@ -6,6 +6,8 @@ Use bringup_ekf.launch.py instead for the EKF odometry; it starts the battery mo
 Never run two bring-ups at once.
 
 With the LDS-01 the LiDAR runs on the robust driver (lidar_driver:=stock for the stock one).
+With the RPLiDAR A1M8 (LDS_MODEL=RPLIDAR-A1) it runs on rplidar_ros.
+gamepad:=true also starts the gamepad teleop (gamepad.launch.py).
 """
 
 import os
@@ -19,7 +21,7 @@ from launch.substitutions import LaunchConfiguration
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from robot_common import lidar_arguments  # noqa: E402
+from robot_common import gamepad_actions, lidar_arguments  # noqa: E402
 
 ROBOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -30,6 +32,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         *lidar_declarations,
+        *gamepad_actions(),
         DeclareLaunchArgument('usb_port', default_value='/dev/ttyACM0',
                               description='Connected USB port with OpenCR'),
         DeclareLaunchArgument('warn_voltage', default_value='11.0',

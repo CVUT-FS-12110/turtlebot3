@@ -44,12 +44,12 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Remote PC (WSL2) + simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) | ✅ working |
 | OpenCR firmware (sources, features) | [docs/opencr-firmware.md](docs/opencr-firmware.md) | 📖 overview only |
 | Raspberry Pi, OpenCR flashing, bring-up | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) | ✅ working (bring-up, motors and LiDAR tested on the robot) |
-| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | 📝 written, mapping measured, not yet driven |
+| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | 📝 `bringup.launch.py gamepad:=true` written, button mapping measured in D-input mode, not yet driven |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
 | Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
-| RPLiDAR A1M8 (`rplidar_ros`, `scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) | 📝 written, not yet run on the robot |
+| RPLiDAR A1M8 (`rplidar_ros`, `scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) | 🔧 `/scan` arrives on the PC at 7.1 Hz with 319 of 360 valid rays, orientation correct in RViz; map not checked yet |
 | Robust LDS-01 driver (`robot/lds01_driver.py`) | [docs/lidar-driver.md](docs/lidar-driver.md) | ✅ working (5 scans per second and about 190 valid rays per scan on the robot) |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 

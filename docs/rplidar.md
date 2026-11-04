@@ -1,8 +1,8 @@
 # RPLiDAR A1M8
 
-The robot's LiDAR was changed from the LDS-01 to a Slamtec RPLiDAR A1M8 (12 m range, about 5.5 scans per second, 8000 readings per second, USB adapter with a CP2102 chip, 115200 baud). The driver is the ROS 2 package `rplidar_ros` (`ros-jazzy-rplidar-ros`), which publishes `/scan` with the frame `base_scan`, so nothing on the PC changes.
+The robot's LiDAR was changed from the LDS-01 to a Slamtec RPLiDAR A1M8 (12 m range, about 7 scans per second in the mode `rplidar_ros` picks, 8000 readings per second, USB adapter with a CP2102 chip, 115200 baud). The driver is the ROS 2 package `rplidar_ros` (`ros-jazzy-rplidar-ros`), which publishes `/scan` with the frame `base_scan`, so nothing on the PC changes.
 
-> **Not tested on the robot yet.** The launch file follows the `rplidar_ros` and `turtlebot3_bringup` sources of the Jazzy branches. Fix this page as soon as something differs on the real hardware.
+> **Partly tested.** On the robot the bring-up starts the driver, and the PC receives `/scan` at about 7.1 Hz and sees all the other topics (`scripts/check.sh`). `scan_stats.py` showed 319 valid rays of 360 per scan (313 to 328) and distances from 0.26 to 7.68 m. In RViz the points sit in the right direction, so the mounting is correct. Not checked yet: a map. Fix this page as soon as something differs on the real hardware.
 
 TurtleBot3's own `robot.launch.py` does not know this model: for an unknown `LDS_MODEL` it silently starts the LDS-01 driver on the same port. That is why the bring-up of this repository must be used; with `LDS_MODEL=RPLIDAR-A1` it starts `rplidar_node` instead ([`robot/launch/lidar_rplidar/hlds_laser.launch.py`](../robot/launch/lidar_rplidar/hlds_laser.launch.py), selected in [`robot/launch/robot_common.py`](../robot/launch/robot_common.py)).
 
@@ -39,7 +39,7 @@ ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 Check on the robot and on the PC:
 
 ```bash
-ros2 topic hz /scan                    # about 5 to 6 Hz
+ros2 topic hz /scan                    # about 7.1 Hz measured on the PC over Wi-Fi, steady (std dev 5 ms)
 python3 ~/turtlebot3-setup/scripts/scan_stats.py
 ```
 
