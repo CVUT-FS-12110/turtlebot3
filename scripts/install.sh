@@ -512,14 +512,14 @@ fi
 # --- Robot hardware access --------------------------------------------------
 
 if [[ $ROLE == robot ]]; then
-  step "udev rules give the OpenCR and the LiDAR stable device names and let you use them; adding your user to the 'dialout' group allows opening the serial ports without sudo."
+  step "udev rules give the OpenCR and the LiDAR stable device names and let you use them; adding your user to the 'dialout' group allows opening the serial ports without sudo, and to the 'input' group allows joy_node (gamepad) to read /dev/input/event*."
   UDEV_SRC="$WS_DIR/src/turtlebot3/turtlebot3_bringup/script/99-turtlebot3-cdc.rules"
-  if cmp -s "$UDEV_SRC" /etc/udev/rules.d/99-turtlebot3-cdc.rules && id -nG "$USER" | grep -qw dialout; then
-    skip "udev rules and dialout group already set up"
+  if cmp -s "$UDEV_SRC" /etc/udev/rules.d/99-turtlebot3-cdc.rules && id -nG "$USER" | grep -qw dialout && id -nG "$USER" | grep -qw input; then
+    skip "udev rules and the dialout and input groups already set up"
   else
     run "sudo cp '$UDEV_SRC' /etc/udev/rules.d/"
     run "sudo udevadm control --reload-rules && sudo udevadm trigger"
-    run "sudo usermod -aG dialout '$USER'"
+    run "sudo usermod -aG dialout,input '$USER'"
     ok "USB access configured (log out and back in to apply the group)"
   fi
 fi
@@ -597,7 +597,7 @@ NEED_REBOOT=0
 [[ $IS_WSL -eq 1 ]] && NEED_REBOOT=0
 if [[ $NEED_REBOOT -eq 1 ]]; then
   echo
-  info "A reboot is recommended: it applies the system update, the udev rules and the 'dialout' group."
+  info "A reboot is recommended: it applies the system update, the udev rules and the 'dialout' and 'input' groups."
   if [[ $DRY_RUN -eq 1 ]]; then
     skip "dry run: would ask whether to reboot now"
   elif [[ $ASSUME_YES -eq 1 ]]; then

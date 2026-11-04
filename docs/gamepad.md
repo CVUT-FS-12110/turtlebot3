@@ -95,11 +95,11 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 | `enable_button` | `6` | button held to drive: `6` = L1 in D-input mode (measured), `4` = LB in X-input mode (Xbox 360 numbering, not measured on this pad) |
 | `scale_linear` | `0.15` | forward speed in m/s at full stick (Burger maximum is about 0.22) |
 | `scale_angular` | `1.0` | turning speed in rad/s at full stick (Burger maximum is about 2.84) |
-| `stamped` | `false` | `true` if `/cmd_vel` is `TwistStamped` |
+| `stamped` | `true` | `/cmd_vel` as `TwistStamped`, which `turtlebot3_node` expects on the robot; `false` for plain `Twist` |
 
 - The robot moves only while you hold the enable button. Release it to stop.
 - **Check once with the wheels in the air** before driving on the floor. Hold the enable button, push the stick up and watch `ros2 topic echo /cmd_vel`: `linear.x` must be positive, and stick left must give a positive `angular.z` (the robot turns left).
-- **`/cmd_vel` type:** `turtlebot3_node` takes plain `Twist` unless its parameter `enable_stamped_cmd_vel` is true. Check what the robot expects with `ros2 topic info /cmd_vel -v` (the subscription type). If it is `TwistStamped`, add `stamped:=true`.
+- **`/cmd_vel` type:** on the robot `turtlebot3_node` subscribes to `TwistStamped` (checked with `ros2 topic info /cmd_vel -v`), so the default is `stamped:=true`. With the wrong type the robot ignores the commands, and `ros2 topic echo /cmd_vel` fails with "contains more than one type". If you ever see that, publisher and subscriber disagree: set `stamped` to the type shown on the `SUBSCRIPTION` line.
 - **No reaction:** `ros2 topic echo /joy` shows whether the pad arrives (`buttons[]` changes when you press L1). If the index of L1 differs from `enable_button`, use the one you see.
 
 ## Manual mapping with the gamepad
@@ -114,5 +114,12 @@ Drive with the gamepad (hold the enable button) and watch the map grow in RViz. 
 
 ## Problems
 
+- **`ros2 topic echo /joy` stays silent although `/dev/input/js0` exists and `jstest` works:** your user is not in the `input` group. `jstest` reads `js0` (readable by everybody), but `joy_node` uses SDL, which reads `/dev/input/event*` (`root:input`, mode 660). Check with `groups`, then:
+
+  ```bash
+  sudo usermod -aG input $USER
+  ```
+
+  Log out and back in (or reboot); the installer does this on new robots, and `scripts/check.sh` warns about it.
 - **No `js0`:** run `sudo modprobe joydev`, then re-pair the pad.
 - **Receiver or lidar drops out, `Undervoltage detected!`:** check `vcgencmd get_throttled` (`0x0` is fine). Without the battery the Pi relies entirely on the OpenCR adapter. See [troubleshooting](troubleshooting.md).

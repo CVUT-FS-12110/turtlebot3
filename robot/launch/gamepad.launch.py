@@ -26,9 +26,9 @@ def generate_launch_description():
                               description='Forward speed [m/s] at full stick (Burger maximum is 0.22)'),
         DeclareLaunchArgument('scale_angular', default_value='1.0',
                               description='Turning speed [rad/s] at full stick (Burger maximum is 2.84)'),
-        DeclareLaunchArgument('stamped', default_value='false',
-                              description='true if /cmd_vel is geometry_msgs/TwistStamped '
-                                          '(enable_stamped_cmd_vel on turtlebot3_node)'),
+        DeclareLaunchArgument('stamped', default_value='true',
+                              description='true: /cmd_vel is geometry_msgs/TwistStamped, which turtlebot3_node '
+                                          'expects in Jazzy (checked on the robot with ros2 topic info /cmd_vel -v)'),
 
         Node(package='joy', executable='joy_node', name='joy_node', output='screen',
              parameters=[{'autorepeat_rate': 20.0}]),

@@ -35,6 +35,7 @@ if grep -qi "raspberry pi" /proc/device-tree/model 2>/dev/null; then
     dpkg -s ros-jazzy-rplidar-ros >/dev/null 2>&1 && ok "rplidar_ros installed" || fail "rplidar_ros missing: run scripts/set-lidar.sh RPLIDAR-A1"
   fi
   id -nG | grep -qw dialout && ok "user is in the dialout group" || fail "user is not in dialout (log out and back in after the installer)"
+  id -nG | grep -qw input && ok "user is in the input group (gamepad)" || warn "user is not in the input group: joy_node sees no gamepad (sudo usermod -aG input \$USER, then log in again)"
   if command -v iw >/dev/null; then
     for dev in /sys/class/net/wl*; do
       [[ -e $dev ]] || continue
