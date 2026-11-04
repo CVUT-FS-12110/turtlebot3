@@ -106,6 +106,7 @@ Then start the mapping, see [auto-mapping.md](auto-mapping.md):
 
 ```bash
 ~/turtlebot3-setup/scripts/mapping.sh          # manual: SLAM + RViz + keyboard teleop
+~/turtlebot3-setup/scripts/mapping.sh --gamepad  # manual, driven by the gamepad on the robot (no keyboard teleop)
 ~/turtlebot3-setup/scripts/mapping.sh auto     # autonomous: auto_mapper
 ~/turtlebot3-setup/scripts/mapping.sh --sim    # Gazebo instead of the robot
 ```

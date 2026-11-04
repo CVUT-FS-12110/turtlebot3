@@ -2,11 +2,13 @@
 # Opens a tmux session on the PC (WSL2) with everything needed to map a room.
 # Run it on the PC only; the robot (or Gazebo) must already be running.
 #
-# Usage: mapping.sh [manual|auto] [--sim] [--restart] [--no-attach]
+# Usage: mapping.sh [manual|auto] [--sim] [--gamepad] [--restart] [--no-attach]
 #        mapping.sh stop
 #   manual      SLAM + RViz + keyboard teleop (default)
 #   auto        auto_mapper: SLAM + Nav2 + frontier explorer, plus RViz
 #   --sim       use the Gazebo clock (use_sim_time:=true); omit it on the real robot
+#   --gamepad   manual mode without the keyboard teleop: drive with the gamepad on the robot
+#               (the keyboard teleop publishes zero speed while idle and would fight the gamepad)
 #   --restart   kill an existing session and start a new one
 #   --no-attach create the session without attaching to it
 #   stop        kill the session
@@ -22,6 +24,7 @@ MODE=manual
 SIM=false
 ATTACH=1
 RESTART=0
+GAMEPAD=0
 
 die() { echo "mapping.sh: $*" >&2; exit 1; }
 
@@ -29,10 +32,11 @@ for arg in "$@"; do
   case "$arg" in
     manual|auto) MODE=$arg ;;
     --sim) SIM=true ;;
+    --gamepad) GAMEPAD=1 ;;
     --restart) RESTART=1 ;;
     --no-attach) ATTACH=0 ;;
     stop) tmux kill-session -t "$SESSION" 2>/dev/null && echo "Session $SESSION stopped" || echo "No session $SESSION"; exit 0 ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $arg (try --help)" ;;
   esac
 done
@@ -89,7 +93,8 @@ tmux select-layout -t "$SESSION:mapping" tiled
 
 tmux select-pane -t "$P_LAUNCH" -T "$([[ $MODE == auto ]] && echo 'auto_mapper' || echo 'slam_toolbox')"
 tmux select-pane -t "$P_RVIZ" -T rviz
-tmux select-pane -t "$P_TELEOP" -T "$([[ $MODE == auto ]] && echo 'hints' || echo 'teleop (w/x speed, a/d turn, s or space = STOP)')"
+if [[ $MODE == auto || $GAMEPAD -eq 1 ]]; then TELEOP_TITLE=hints; else TELEOP_TITLE='teleop (w/x speed, a/d turn, s or space = STOP)'; fi
+tmux select-pane -t "$P_TELEOP" -T "$TELEOP_TITLE"
 tmux select-pane -t "$P_SCAN" -T "/scan rate"
 
 for pane in "$P_LAUNCH" "$P_RVIZ" "$P_TELEOP" "$P_SCAN"; do send "$pane" "$SRC"; done
@@ -100,6 +105,8 @@ send "$P_LAUNCH" "$LAUNCH"
 send "$P_RVIZ" "sleep 4 && ros2 run rviz2 rviz2 -d \"$RVIZ_CFG\"$RVIZ_ARGS"
 if [[ $MODE == auto ]]; then
   send "$P_TELEOP" "clear; echo 'Stop: Ctrl+C in the auto_mapper pane. Save the map by hand:'; echo '  mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/room'"
+elif [[ $GAMEPAD -eq 1 ]]; then
+  send "$P_TELEOP" "clear; echo 'Gamepad mode: no keyboard teleop here. Drive with the gamepad (hold the enable button);'; echo 'the robot must run: bringup.launch.py gamepad:=true. Save the map by hand:'; echo '  mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/room'"
 else
   send "$P_TELEOP" "ros2 run turtlebot3_teleop teleop_keyboard"
   tmux select-pane -t "$P_TELEOP"   # keys go to the teleop pane

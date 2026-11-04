@@ -92,7 +92,7 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `enable_button` | `6` | button held to drive: `6` = L1 in D-input mode (measured, and confirmed driving the robot); `4` = LB in X-input mode (Xbox 360 numbering, not measured on this pad) |
+| `enable_button` | `4` | button held to drive: `4` = LB in X-input mode (11 buttons in `/joy`; seen in `/joy`, not yet confirmed driving); `6` = L1 in D-input mode (15 buttons in `/joy`; confirmed driving the robot) |
 | `scale_linear` | `0.15` | forward speed in m/s at full stick (Burger maximum is about 0.22) |
 | `scale_angular` | `1.0` | turning speed in rad/s at full stick (Burger maximum is about 2.84) |
 | `stamped` | `true` | `/cmd_vel` as `TwistStamped`, which `turtlebot3_node` expects on the robot; `false` for plain `Twist` |
@@ -100,7 +100,7 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 - The robot moves only while you hold the enable button. Release it to stop.
 - **Check once with the wheels in the air** before driving on the floor. Hold the enable button, push the stick up and watch `ros2 topic echo /cmd_vel`: `linear.x` must be positive, and stick left must give a positive `angular.z` (the robot turns left).
 - **`/cmd_vel` type:** on the robot `turtlebot3_node` subscribes to `TwistStamped` (checked with `ros2 topic info /cmd_vel -v`), so the default is `stamped:=true`. With the wrong type the robot ignores the commands, and `ros2 topic echo /cmd_vel` fails with "contains more than one type". If you ever see that, publisher and subscriber disagree: set `stamped` to the type shown on the `SUBSCRIPTION` line.
-- **Tested on the robot:** with the pad in D-input mode, `bringup.launch.py gamepad:=true` (all defaults) drives the robot while the enable button is held.
+- **Tested on the robot:** `bringup.launch.py gamepad:=true` drives the robot while the enable button is held (confirmed in D-input mode with `enable_button:=6`). The pad can come back in the other mode after it was off or re-paired: `ros2 topic echo /joy --field buttons` shows 11 entries in X-input and 15 in D-input, and the entry that turns 1 while you hold L1 is the `enable_button`.
 - **No reaction:** `ros2 topic echo /joy` shows whether the pad arrives (`buttons[]` changes when you press L1). If the index of L1 differs from `enable_button`, use the one you see.
 
 ## Manual mapping with the gamepad
@@ -108,10 +108,10 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 Mapping does not change: it runs on the PC and listens to `/cmd_vel`, whoever publishes it. Start the robot with `gamepad:=true`, then on the **PC**:
 
 ```bash
-~/turtlebot3-setup/scripts/mapping.sh
+~/turtlebot3-setup/scripts/mapping.sh --gamepad
 ```
 
-Drive with the gamepad (hold the enable button) and watch the map grow in RViz. The keyboard teleop pane of `mapping.sh` stays available; it publishes only when you press a key, so the two do not fight, but use one at a time. Drive slowly (the default 0.15 m/s) so SLAM can match the scans; turns are the hard part, so make them gently.
+`--gamepad` which leaves out the keyboard teleop. Do not run the keyboard teleop next to the gamepad: it publishes zero speed on `/cmd_vel` while idle, between the gamepad's commands, and the robot jerks (seen as `0.1266, 0.0, 0.1266, 0.1266, 0.0, …` in `ros2 topic echo /cmd_vel`; `ros2 node list` shows `/teleop_keyboard`). Drive with the gamepad (hold the enable button) and watch the map grow in RViz. Drive slowly (the default 0.15 m/s) so SLAM can match the scans; turns are the hard part, so make them gently.
 
 ## Problems
 

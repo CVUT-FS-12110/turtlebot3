@@ -44,7 +44,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Remote PC (WSL2) + simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) | ✅ working |
 | OpenCR firmware (sources, features) | [docs/opencr-firmware.md](docs/opencr-firmware.md) | 📖 overview only |
 | Raspberry Pi, OpenCR flashing, bring-up | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) | ✅ working (bring-up, motors and LiDAR tested on the robot) |
-| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | ✅ working: `bringup.launch.py gamepad:=true` drives the robot (D-input mode, L1 enables); not yet used for mapping |
+| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | ✅ working: `bringup.launch.py gamepad:=true` drives the robot (confirmed in D-input mode with `enable_button:=6`; X-input uses LB, `enable_button:=4`, not yet confirmed); not yet used for mapping |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
