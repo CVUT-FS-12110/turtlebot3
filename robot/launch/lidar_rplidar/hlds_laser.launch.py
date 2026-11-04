@@ -8,10 +8,23 @@ robot.launch.py asks for.
 The A1M8 talks 115200 baud (A2M7, A3 and S1 use 256000). The scan is published on /scan.
 """
 
+import os
+
+from ament_index_python.packages import get_package_prefix
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def driver_executable():
+    """The same node is installed as rplidar_node (upstream 2.1.4) or only as rplidar_composition
+    (older binary builds); use whichever the installed package has."""
+    libexec = os.path.join(get_package_prefix('rplidar_ros'), 'lib', 'rplidar_ros')
+    for name in ('rplidar_node', 'rplidar_composition'):
+        if os.path.exists(os.path.join(libexec, name)):
+            return name
+    return 'rplidar_node'
 
 
 def generate_launch_description():
@@ -20,7 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument('frame_id', default_value='base_scan'),
         DeclareLaunchArgument('namespace', default_value='', description='accepted and ignored'),
 
-        Node(package='rplidar_ros', executable='rplidar_node', name='rplidar_node', output='screen',
+        Node(package='rplidar_ros', executable=driver_executable(), name='rplidar_node', output='screen',
              parameters=[{'channel_type': 'serial',
                           'serial_port': LaunchConfiguration('port'),
                           'serial_baudrate': 115200,
