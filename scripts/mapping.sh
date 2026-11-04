@@ -14,11 +14,13 @@
 #   stop        kill the session
 #
 # Panes:  [launch]  [RViz]  [teleop or hints]  [/scan rate]
+# The status bar shows the robot's battery voltage (window "battery" runs robot/battery_status.py).
 # Detach with Ctrl+b then d, reattach with: tmux attach -t mapping
 
 set -euo pipefail
 
 SESSION=mapping
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 WS_DIR=${WS_DIR:-$HOME/turtlebot3_ws}
 MODE=manual
 SIM=false
@@ -36,7 +38,7 @@ for arg in "$@"; do
     --restart) RESTART=1 ;;
     --no-attach) ATTACH=0 ;;
     stop) tmux kill-session -t "$SESSION" 2>/dev/null && echo "Session $SESSION stopped" || echo "No session $SESSION"; exit 0 ;;
-    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $arg (try --help)" ;;
   esac
 done
@@ -68,7 +70,7 @@ SLAM_PARAMS='$(ros2 pkg prefix auto_mapper)/share/auto_mapper/config/slam_toolbo
 if [[ $MODE == auto ]]; then
   RVIZ_CFG='$(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/rviz/nav2_default_view.rviz'
 else
-  RVIZ_CFG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/auto_mapper/config/mapping.rviz"
+  RVIZ_CFG="$REPO_DIR/auto_mapper/config/mapping.rviz"
 fi
 RVIZ_ARGS=""
 [[ $SIM == true ]] && RVIZ_ARGS=" --ros-args -p use_sim_time:=true"
@@ -86,6 +88,13 @@ P_RVIZ=$(tmux split-window -h -t "$P_LAUNCH" -P -F '#{pane_id}')
 P_TELEOP=$(tmux split-window -v -t "$P_RVIZ" -P -F '#{pane_id}')
 P_SCAN=$(tmux split-window -v -t "$P_LAUNCH" -P -F '#{pane_id}')
 tmux new-window -t "$SESSION:" -n shell
+# Battery voltage of the robot in this session's status bar: battery_status.py (the same node as on the Pi)
+# subscribes to /battery_state and writes /tmp/tb3_battery, which the status bar shows. It runs in its own window.
+tmux new-window -t "$SESSION:" -n battery
+tmux send-keys -t "$SESSION:battery" "$SRC; python3 \"$REPO_DIR/robot/battery_status.py\"" C-m
+tmux set-option -t "$SESSION" status-right-length 120
+tmux set-option -t "$SESSION" status-right "#(cat /tmp/tb3_battery 2>/dev/null) | ROS_DOMAIN_ID ${ROS_DOMAIN_ID:-?} | %H:%M"
+tmux set-option -t "$SESSION" status-interval 5
 tmux select-window -t "$SESSION:mapping"
 tmux set-option -t "$SESSION" mouse on
 tmux set-option -t "$SESSION" pane-border-status top

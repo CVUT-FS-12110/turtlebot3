@@ -58,10 +58,18 @@ ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py warn_voltage:=11.3
 
 ## PC (WSL2)
 
-Nothing to install or run. To read the same value on the PC, use the topic:
+Nothing to install. `scripts/mapping.sh` shows the robot's battery in the status bar of its tmux session (bottom right, `Battery: 11.8 V 87 % | ROS_DOMAIN_ID 30 | 19:42`). It runs the same [`battery_status.py`](../robot/battery_status.py) in a tmux window called `battery` on the PC, subscribed to `/battery_state` over the network, with the same colours and limits (11.0 V yellow, 10.5 V red; the PC copy uses the defaults, the launch arguments above apply only on the robot). The bring-up on the robot must run. Not yet checked on the PC.
+
+To read the value once without the script, use the topic:
 
 ```bash
 ros2 topic echo /battery_state --once --field voltage
+```
+
+To run only the status line next to your own tmux, start the node by hand on the PC (it writes `/tmp/tb3_battery` there, a different file from the robot's):
+
+```bash
+python3 ~/turtlebot3-setup/robot/battery_status.py
 ```
 
 ## Checks

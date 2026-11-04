@@ -34,6 +34,8 @@ source install/setup.bash
 
 RViz opens with [`auto_mapper/config/mapping.rviz`](../auto_mapper/config/mapping.rviz) in manual mode (map, `/scan`, robot model, TF; the LiDAR is subscribed as best effort, which is how it publishes) and with the Nav2 view in `auto` mode. The Nav2 view is not used by hand, because its panel keeps printing `controller_server service not available` while Nav2 does not run.
 
+The status bar of the session shows the robot's battery voltage ([battery-status.md](battery-status.md#pc-wsl2)); yellow below 11.0 V, red below 10.5 V (stop driving).
+
 With `--gamepad` the pane shows only hints: the keyboard teleop keeps publishing zero speed while idle and would fight the gamepad, which makes the robot jerk ([gamepad.md](gamepad.md#problems)). Start the robot with `bringup.launch.py gamepad:=true`.
 
 Teleop keys work only in the teleop pane: `w`/`x` faster forward/backward, `a`/`d` turn, `s` or space stops. Mouse works in the panes. Detach with `Ctrl+b` then `d`, reattach with `tmux attach -t mapping`, end with `mapping.sh stop`. From Windows one click opens it in a new window: `wt wsl -e ~/turtlebot3-setup/scripts/mapping.sh`.
