@@ -92,7 +92,7 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `enable_button` | `6` | button held to drive: `6` = L1 in D-input mode (measured), `4` = LB in X-input mode (Xbox 360 numbering, not measured on this pad) |
+| `enable_button` | `6` | button held to drive: `6` = L1 in D-input mode (measured, and confirmed driving the robot); `4` = LB in X-input mode (Xbox 360 numbering, not measured on this pad) |
 | `scale_linear` | `0.15` | forward speed in m/s at full stick (Burger maximum is about 0.22) |
 | `scale_angular` | `1.0` | turning speed in rad/s at full stick (Burger maximum is about 2.84) |
 | `stamped` | `true` | `/cmd_vel` as `TwistStamped`, which `turtlebot3_node` expects on the robot; `false` for plain `Twist` |
@@ -100,6 +100,7 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 - The robot moves only while you hold the enable button. Release it to stop.
 - **Check once with the wheels in the air** before driving on the floor. Hold the enable button, push the stick up and watch `ros2 topic echo /cmd_vel`: `linear.x` must be positive, and stick left must give a positive `angular.z` (the robot turns left).
 - **`/cmd_vel` type:** on the robot `turtlebot3_node` subscribes to `TwistStamped` (checked with `ros2 topic info /cmd_vel -v`), so the default is `stamped:=true`. With the wrong type the robot ignores the commands, and `ros2 topic echo /cmd_vel` fails with "contains more than one type". If you ever see that, publisher and subscriber disagree: set `stamped` to the type shown on the `SUBSCRIPTION` line.
+- **Tested on the robot:** with the pad in D-input mode, `bringup.launch.py gamepad:=true` (all defaults) drives the robot while the enable button is held.
 - **No reaction:** `ros2 topic echo /joy` shows whether the pad arrives (`buttons[]` changes when you press L1). If the index of L1 differs from `enable_button`, use the one you see.
 
 ## Manual mapping with the gamepad
