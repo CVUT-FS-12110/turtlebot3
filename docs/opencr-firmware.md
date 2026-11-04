@@ -43,7 +43,7 @@ On the OpenCR side, the firmware:
 | Other | HC-SR04 style sonar on GPIO 1/2, RC-100 remote control (summed with `cmd_vel`), motor test with the on-board buttons, voltage diagnostics |
 | Manipulator | Control table entries for 4 joints and the gripper (OpenManipulator-X), used by the `turtlebot3_manipulation` variant |
 
-For the **Burger** with a LDS-01 the relevant parts are the drive, IMU and battery items. The LiDAR is connected to the Raspberry Pi, not to the OpenCR. The bumpers, sonar and manipulator entries stay unused.
+For the **Burger** with a LiDAR (LDS-01, now an RPLiDAR A1M8) the relevant parts are the drive, IMU and battery items. The LiDAR is connected to the Raspberry Pi, not to the OpenCR. The bumpers, sonar and manipulator entries stay unused.
 
 ## Limitations
 

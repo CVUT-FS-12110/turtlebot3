@@ -27,11 +27,14 @@ source install/setup.bash
 
 ```bash
 ~/turtlebot3-setup/scripts/mapping.sh            # manual: SLAM + teleop, drive with the keyboard
+~/turtlebot3-setup/scripts/mapping.sh --gamepad  # manual, drive with the gamepad on the robot (no keyboard teleop)
 ~/turtlebot3-setup/scripts/mapping.sh auto       # autonomous: auto_mapper (SLAM + Nav2 + explorer)
 ~/turtlebot3-setup/scripts/mapping.sh --sim      # against Gazebo (add use_sim_time)
 ```
 
 RViz opens with [`auto_mapper/config/mapping.rviz`](../auto_mapper/config/mapping.rviz) in manual mode (map, `/scan`, robot model, TF; the LiDAR is subscribed as best effort, which is how it publishes) and with the Nav2 view in `auto` mode. The Nav2 view is not used by hand, because its panel keeps printing `controller_server service not available` while Nav2 does not run.
+
+With `--gamepad` the pane shows only hints: the keyboard teleop keeps publishing zero speed while idle and would fight the gamepad, which makes the robot jerk ([gamepad.md](gamepad.md#problems)). Start the robot with `bringup.launch.py gamepad:=true`.
 
 Teleop keys work only in the teleop pane: `w`/`x` faster forward/backward, `a`/`d` turn, `s` or space stops. Mouse works in the panes. Detach with `Ctrl+b` then `d`, reattach with `tmux attach -t mapping`, end with `mapping.sh stop`. From Windows one click opens it in a new window: `wt wsl -e ~/turtlebot3-setup/scripts/mapping.sh`.
 
@@ -56,7 +59,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 
 ## Settings
 
-[`config/explorer.yaml`](../auto_mapper/config/explorer.yaml) – the explorer, [`config/slam_toolbox.yaml`](../auto_mapper/config/slam_toolbox.yaml) – SLAM tuned for the LDS-01 (range limited to 3 m, loop closing on). Another file can be passed with `explorer_params:=` and `slam_params:=`.
+[`config/explorer.yaml`](../auto_mapper/config/explorer.yaml) – the explorer, [`config/slam_toolbox.yaml`](../auto_mapper/config/slam_toolbox.yaml) – SLAM tuned for the LDS-01 (range limited to 3 m, loop closing on; the RPLiDAR A1M8 reads up to 12 m, so `max_laser_range` can be raised, see [rplidar.md](rplidar.md)). Another file can be passed with `explorer_params:=` and `slam_params:=`.
 
 | Parameter | Default | Meaning |
 |---|---|---|

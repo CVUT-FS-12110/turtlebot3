@@ -61,7 +61,7 @@ packages:
   - openssh-server
 users:
   - name: turtle
-    groups: [sudo, dialout]
+    groups: [sudo, dialout, input]
     shell: /bin/bash
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
     lock_passwd: false
@@ -126,7 +126,7 @@ The installer's `~/.tmux.conf` block is meant for running several ROS 2 programs
 
 The status bar shows `ROS_DOMAIN_ID`, the robot model and the load average. A load above the number of cores (4 on a Pi 3B+) means the Pi is busy, for example during a build. Pane borders show the program running in each pane.
 
-Choose role `robot` and the LiDAR model `RPLIDAR-A1` (the default; `LDS-01`, `LDS-02` and `LDS-03` are the ROBOTIS ones). To switch an already installed robot to the RPLiDAR without the installer, see [rplidar.md](rplidar.md). The installer can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` group applies.
+Choose role `robot` and the LiDAR model `RPLIDAR-A1` (the default; `LDS-01`, `LDS-02` and `LDS-03` are the ROBOTIS ones). To switch an already installed robot to the RPLiDAR without the installer, see [rplidar.md](rplidar.md). The installer can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` and `input` groups apply (`dialout` for the serial ports, `input` for the gamepad). With the gamepad plugged in, start the bring-up with `gamepad:=true`, see [gamepad.md](gamepad.md).
 
 ## 3. Flash the OpenCR
 

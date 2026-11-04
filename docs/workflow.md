@@ -82,7 +82,11 @@ export TURTLEBOT3_MODEL=burger
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 ```
 
-This is the normal bring-up plus the battery voltage in the tmux status bar ([battery-status.md](battery-status.md)). The plain `ros2 launch turtlebot3_bringup robot.launch.py` works the same, without the battery item.
+This is the normal bring-up plus the battery voltage in the tmux status bar ([battery-status.md](battery-status.md)). It also starts the right LiDAR driver for `LDS_MODEL` (the RPLiDAR A1M8, see [rplidar.md](rplidar.md)); the plain `ros2 launch turtlebot3_bringup robot.launch.py` does not know it and would start the LDS-01 driver, so do not use it with this robot. For the gamepad add `gamepad:=true` ([gamepad.md](gamepad.md)):
+
+```bash
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py gamepad:=true
+```
 
 Or with the EKF odometry (**instead of**, never together with, the lines above; it shows the battery too, see [ekf.md](ekf.md)):
 
@@ -92,7 +96,7 @@ ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
 
 ### 2. PC (WSL2)
 
-Check that the robot's data arrive (`/scan` must run at about 5 Hz) and that the PC clock is in sync (after Windows sleeps the WSL clock can be off; the `System time` line must be in milliseconds):
+Check that the robot's data arrive (`/scan` must run at about 7 Hz with the RPLiDAR, 5 Hz with the old LDS-01) and that the PC clock is in sync (after Windows sleeps the WSL clock can be off; the `System time` line must be in milliseconds):
 
 ```bash
 ros2 daemon stop

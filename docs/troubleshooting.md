@@ -16,7 +16,7 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 | Symptom | What to do |
 |---|---|
 | `/dev/ttyACM0` missing | OpenCR power switch off, bad USB cable, or the udev rules are not installed. Check with `ls /dev/ttyACM*` and `dmesg \| tail`. |
-| `Permission denied` on the port | The user is not in `dialout`. Log out and back in after the installer. |
+| `Permission denied` on the port | The user is not in `dialout`. Log out and back in after the installer. (The gamepad needs the `input` group, see [gamepad.md](gamepad.md#problems).) |
 | `Failed connection with Devices`, then `RCLError ... context is invalid` | The OpenCR has no ROS 2 firmware (port opens, but the board does not answer). Flash `burger.opencr`, see [robot-raspberry-pi.md](robot-raspberry-pi.md#3-flash-the-opencr). Also check the power switch and battery. |
 | Flashing fails | Recovery mode: hold **PUSH SW2**, press **Reset**, release **Reset**, release **SW2**. Make sure `libc6:armhf` is installed. |
 | Motors do not move, wheels free | Dynamixel power not enabled, or the battery is empty. Test with **SW1**/**SW2** on the board. |
@@ -30,6 +30,21 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 - **`apt` is locked:** automatic upgrades are running. Wait, or disable them (the installer offers it).
 - **Topics lag or drop over Wi-Fi:** disable Wi-Fi power saving (`iw dev wlan0 get power_save` should say `off`), move to 5 GHz, and keep the PC on the same access point.
 - **`ros2 launch` cannot find the LiDAR:** check `ls /dev/ttyUSB*` and the `LDS_MODEL` variable (`RPLIDAR-A1` for your robot, see [rplidar.md](rplidar.md); start it with this repository's `robot/launch/bringup.launch.py`, not with `turtlebot3_bringup`'s own launch file, which starts the LDS-01 driver for an unknown model).
+
+## RPLiDAR, scan and mapping
+
+| Symptom | What to do |
+|---|---|
+| Log says `Reading the LDS-01 on /dev/ttyUSB0`, `0 of 60 packets` | The shell still has `LDS_MODEL=LDS-01`. Run `scripts/set-lidar.sh RPLIDAR-A1`, then `source ~/.bashrc` or open a new terminal. See [rplidar.md](rplidar.md). |
+| `executable 'rplidar_node' not found on the libexec directory` | The apt build installs the node as `rplidar_composition`. Update the repository (`git pull`): the launch file uses whichever exists. |
+| `package 'joy' not found` (with `gamepad:=true`) | `sudo apt install ros-jazzy-joy ros-jazzy-teleop-twist-joy joystick` on the robot. |
+| RViz: `Message Filter dropping message ... queue is full` | Fixed Frame is `map` but SLAM does not run, so the scan cannot be placed. Use `odom` or `base_scan` until SLAM runs. Not a clock problem. See [rplidar.md](rplidar.md#looking-at-the-scan-in-rviz-pc). |
+| No points in RViz | LaserScan Reliability must be Best Effort; check the Status line of the display. `ros2 topic hz /scan` and `scripts/scan_stats.py` show whether the data arrive at all. |
+| Clear the old points in RViz | **Reset** at the bottom left (`Ctrl+R`). The SLAM map is cleared by `mapping.sh --restart`. |
+| **Walls move with the robot** while mapping | The scan is turned against the robot. The RPLiDAR on this robot is mounted turned by 180°; the launch file compensates with `lidar_yaw` (default 3.14159265, `lidar_yaw:=0` if the arrow points forward). Also check that Fixed Frame is `map` and that `odom` changes while driving (`ros2 topic echo /odom --field pose.pose.position`). |
+| Gamepad: `/joy` silent | User not in the `input` group, see [gamepad.md](gamepad.md#problems). |
+| Gamepad: robot does not move after a restart | The pad came back in the other mode, so the enable button has another index (4 or 6). See [gamepad.md](gamepad.md#drive-the-robot). |
+| Gamepad: robot jerks | A second publisher on `/cmd_vel` (the keyboard teleop from `mapping.sh`). Use `mapping.sh --gamepad`, see [gamepad.md](gamepad.md#problems). |
 
 ## The clocks of the PC and the robot differ
 

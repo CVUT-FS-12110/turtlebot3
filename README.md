@@ -12,7 +12,7 @@ Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT**
 | 2 | ROBOT | Prepare the SD card and the Raspberry Pi, install ROS 2 and build the workspace | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) |
 | 3 | ROBOT | Flash the ROS 2 firmware to the OpenCR and bring up the robot (motors, LiDAR) | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md), [docs/opencr-firmware.md](docs/opencr-firmware.md) |
 | 4 | both | Check that the PC sees the robot's topics (same `ROS_DOMAIN_ID`, CycloneDDS, multicast) | [`scripts/check.sh`](scripts/check.sh), [Common settings](#common-settings) |
-| 5 | PC (+ ROBOT) | Drive the robot by hand with the keyboard (PC) or the Evolveo gamepad (plugged into the Pi) | [docs/gamepad.md](docs/gamepad.md), [docs/auto-mapping.md](docs/auto-mapping.md) |
+| 5 | PC (+ ROBOT) | Drive the robot by hand with the keyboard (PC) or the Evolveo gamepad (plugged into the Pi, `bringup.launch.py gamepad:=true`) | [docs/gamepad.md](docs/gamepad.md), [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
 | 8 | ROBOT | Optional: show the battery voltage in the tmux status bar | [docs/battery-status.md](docs/battery-status.md) |
@@ -44,7 +44,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Remote PC (WSL2) + simulation | [docs/remote-pc-wsl2.md](docs/remote-pc-wsl2.md) | ✅ working |
 | OpenCR firmware (sources, features) | [docs/opencr-firmware.md](docs/opencr-firmware.md) | 📖 overview only |
 | Raspberry Pi, OpenCR flashing, bring-up | [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md) | ✅ working (bring-up, motors and LiDAR tested on the robot) |
-| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | ✅ working: `bringup.launch.py gamepad:=true` drives the robot (confirmed in D-input mode with `enable_button:=6`; X-input uses LB, `enable_button:=4`, not yet confirmed); not yet used for mapping |
+| Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | ✅ working: `bringup.launch.py gamepad:=true` drives the robot (X-input: `enable_button:=4`, D-input: `6`); `mapping.sh --gamepad` for manual mapping, a full map not checked yet |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |

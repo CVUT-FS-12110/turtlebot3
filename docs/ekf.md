@@ -55,7 +55,7 @@ A larger variance means less trust. If the map is rotated or smeared after turns
 
 - **Two sources of `odom → base_footprint`** (the tree flickers, `TF_REPEATED_DATA` warnings): the normal `robot.launch.py` is running too. Stop it and use only `bringup_ekf.launch.py`.
 - **`has no "publish_tf: true"`**: the installed `turtlebot3_bringup` parameters changed; check `param/burger.yaml` and adjust `params_without_odom_tf` in the launch file.
-- **To go back**: stop the EKF launch and start `ros2 launch turtlebot3_bringup robot.launch.py` as before.
+- **To go back**: stop the EKF launch and start `ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py` (the plain `turtlebot3_bringup robot.launch.py` does not know the RPLiDAR, see [rplidar.md](rplidar.md)).
 
 ## Status
 

@@ -1,10 +1,10 @@
 # RPLiDAR A1M8
 
-The robot's LiDAR was changed from the LDS-01 to a Slamtec RPLiDAR A1M8 (12 m range, about 7 scans per second in the mode `rplidar_ros` picks, 8000 readings per second, USB adapter with a CP2102 chip, 115200 baud). The driver is the ROS 2 package `rplidar_ros` (`ros-jazzy-rplidar-ros`), which publishes `/scan` with the frame `base_scan`, so nothing on the PC changes.
+The robot's LiDAR was changed from the LDS-01 to a Slamtec RPLiDAR A1M8 (12 m range, about 7 scans per second in the mode `rplidar_ros` picks, 8000 readings per second, USB adapter with a CP2102 chip, 115200 baud). The driver is the ROS 2 package `rplidar_ros` (`ros-jazzy-rplidar-ros`), which publishes `/scan`, so nothing on the PC changes. The scan is stamped with the frame `base_scan_rplidar`, a child of `base_scan` turned by `lidar_yaw` (see [Mounting](#things-to-check-on-the-hardware)).
 
-> **Partly tested.** On the robot the bring-up starts the driver, and the PC receives `/scan` at about 7.1 Hz and sees all the other topics (`scripts/check.sh`). `scan_stats.py` showed 319 valid rays of 360 per scan (313 to 328) and distances from 0.26 to 7.68 m. A look at the points in RViz cannot show a turn by 180° (the walls look plausible in any direction); SLAM did: the walls moved with the robot until the scan frame was turned by `lidar_yaw`. Not checked yet: a finished map. Fix this page as soon as something differs on the real hardware.
+> **Tested on the robot:** the bring-up starts the driver (firmware 1.25, health `0`, scan mode Express), the PC receives `/scan` at about 7.1 Hz and sees all the other topics (`scripts/check.sh`). `scan_stats.py` showed 319 valid rays of 360 per scan (313 to 328) and distances from 0.26 to 7.68 m. The mounting turn was found by mapping, not by looking at RViz (see Mounting). **Not checked yet:** a finished map with `lidar_yaw` applied. Fix this page as soon as something differs on the real hardware.
 
-TurtleBot3's own `robot.launch.py` does not know this model: for an unknown `LDS_MODEL` it silently starts the LDS-01 driver on the same port. That is why the bring-up of this repository must be used; with `LDS_MODEL=RPLIDAR-A1` it starts `rplidar_node` instead ([`robot/launch/lidar_rplidar/hlds_laser.launch.py`](../robot/launch/lidar_rplidar/hlds_laser.launch.py), selected in [`robot/launch/robot_common.py`](../robot/launch/robot_common.py)).
+TurtleBot3's own `robot.launch.py` does not know this model: for an unknown `LDS_MODEL` it silently starts the LDS-01 driver on the same port. That is why the bring-up of this repository must be used; with `LDS_MODEL=RPLIDAR-A1` it starts the RPLiDAR driver instead ([`robot/launch/lidar_rplidar/hlds_laser.launch.py`](../robot/launch/lidar_rplidar/hlds_laser.launch.py), selected in [`robot/launch/robot_common.py`](../robot/launch/robot_common.py)). The apt build of `rplidar_ros` on the robot installs the node as `rplidar_composition` (upstream 2.1.4 has `rplidar_node`); the launch file uses whichever exists.
 
 ## New robot (installer)
 
@@ -43,11 +43,22 @@ ros2 topic hz /scan                    # about 7.1 Hz measured on the PC over Wi
 python3 ~/turtlebot3-setup/scripts/scan_stats.py
 ```
 
-`rplidar_node` logs the firmware, the health status and the scan mode at the start. The sensor spins up when the node starts and stops when it ends.
+The driver logs the firmware, the health status and the scan mode at the start. The sensor spins up when the node starts and stops when it ends.
+
+**If the log still says `Reading the LDS-01 on /dev/ttyUSB0`** (and `0 of 60 packets`), the shell still has `LDS_MODEL=LDS-01`. Changing `~/.bashrc` affects only new shells (or tmux windows opened afterwards): run `source ~/.bashrc` or open a new one.
+
+## Looking at the scan in RViz (PC)
+
+[`mapping.rviz`](../auto_mapper/config/mapping.rviz) shows the red `/scan` points. Things that make the points vanish or the console print `Message Filter dropping message ... queue is full`:
+
+- **Fixed Frame is `map` but SLAM is not running.** `map` exists only while `slam_toolbox` runs; before that RViz cannot place the scan and drops it. Set **Global Options → Fixed Frame** to `odom` (or `base_scan`) for a look at the raw scan, and back to `map` for mapping. The dropped messages are not a clock problem (the interval between the log lines is the time the filter queue needs to fill at 7 Hz).
+- **LaserScan Reliability must be Best Effort**, which is how the driver publishes (the repository's view is set that way).
+- **Remove old points:** the **Reset** button at the bottom left (or `Ctrl+R`) clears the history of all displays; it does not delete the SLAM map. In the LaserScan display, a **Decay Time** above 0 keeps points for that many seconds. The map itself is cleared by restarting SLAM (`mapping.sh --restart`).
+- **A look at the points cannot show a mounting turn by 180°** (walls look plausible in any direction). Check the direction by driving, see below.
 
 ## Things to check on the hardware
 
-- **Mounting:** the sensor's zero angle points along the arrow on its body, and the scan turns counter-clockwise like every ROS scan. The TurtleBot3 model expects the arrow to point to the front of the robot (frame `base_scan`). On this robot the sensor sits turned by 180°, so the launch file publishes the scan in the frame `base_scan_rplidar`, turned by `lidar_yaw` (default 3.14159265) against `base_scan`. With a wrong angle the scan looks fine in RViz in the robot frame, but SLAM sees the walls move with the robot while it drives. If you turn the sensor so that the arrow points forward, start with `lidar_yaw:=0`. For another angle (for example 90° = 1.5708) use that value.
+- **Mounting:** the sensor's zero angle points along the arrow on its body, and the scan turns counter-clockwise like every ROS scan. The TurtleBot3 model expects the arrow to point to the front of the robot (frame `base_scan`). On this robot the sensor sits turned by 180°, so the launch file publishes the scan in the frame `base_scan_rplidar`, turned by `lidar_yaw` (default 3.14159265) against `base_scan`. With a wrong angle the scan looks fine in RViz in the robot frame, but while the robot drives, SLAM sees the walls move with it (the scan says "backwards" where the wheels say "forwards"); this is how the 180° turn was found. Check after any change: drive slowly straight ahead in RViz with Fixed Frame `map`, the walls must stay put. Check the transform with `ros2 run tf2_ros tf2_echo base_scan base_scan_rplidar` (yaw about 3.14). If you turn the sensor so that the arrow points forward, start with `lidar_yaw:=0`. For another angle (for example 90° = 1.5708) use that value.
 - **Power:** the motor and the laser draw more than the LDS-01 did. Use the USB adapter board that came with the sensor in a USB port of the Pi, and check `vcgencmd get_throttled` (`0x0` is fine). Undervoltage shows up as a motor that does not spin up or as a Pi that reboots, see [troubleshooting](troubleshooting.md).
 - **Port:** the adapter appears as `/dev/ttyUSB0` (the OpenCR is `/dev/ttyACM0`). `robot.launch.py` fixes the port; with more USB serial devices the names can swap.
 - **Range:** the A1M8 reads up to 12 m. [`auto_mapper/config/slam_toolbox.yaml`](../auto_mapper/config/slam_toolbox.yaml) still limits SLAM to 3 m because of the LDS-01. Raise `max_laser_range` (for example to 8) once the scan looks clean.

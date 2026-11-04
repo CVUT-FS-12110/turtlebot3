@@ -1,5 +1,7 @@
 # Robust LDS-01 driver
 
+> **Only for the LDS-01.** The robot now has an RPLiDAR A1M8 ([rplidar.md](rplidar.md)) and this driver is not used with it. It stays in the repository in case the old sensor comes back.
+
 On some robots the serial link of the LDS-01 loses or corrupts about a third of the bytes (measured with [`scripts/lds01_check.py`](../scripts/lds01_check.py): only 34 to 40 of the 60 packets of a revolution arrive, 30 % of the bytes are unusable, on a PC and on the Pi alike). The stock `hlds_laser_publisher` cuts a revolution out of the stream at fixed 42-byte positions, so one lost byte spoils the rest of the revolution. The result is `/scan` at 2.5 Hz instead of 5 Hz with only a few valid readings, and a thin map.
 
 [`robot/lds01_driver.py`](../robot/lds01_driver.py) is a drop-in replacement. It recognises every packet on its own (header, index, plausible speed) and places its six readings by the packet index, so what arrives is kept and only the lost angles stay empty (`0.0`). The protocol is in [`robot/lds01_protocol.py`](../robot/lds01_protocol.py), shared with the check script.

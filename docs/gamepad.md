@@ -73,7 +73,7 @@ Not yet pressed: Select, Start, Mode and the stick clicks (10 to 14). Indices 2 
 
 The left stick was measured on its own (axes 0 and 1), so the drive settings below are based on measured values. These are raw `jstest` signs: up is negative. `joy_node` normally flips them so that up and left are positive in `/joy`, but check this with `ros2 topic echo /joy` before driving.
 
-Use L1 (button 6) as `enable_button`.
+In ROS the indices depend on the mode the pad is paired in. `/joy` showed **15 buttons with L1 = 6** in D-input mode (as in `jstest`), and **11 buttons with L1 (LB) = 4** in X-input mode (Xbox 360 layout; only L1 was checked there). The left stick is axes 0 and 1 in both. So `enable_button` is 6 or 4; see [Drive the robot](#drive-the-robot).
 
 ## Drive the robot
 
@@ -92,7 +92,7 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `enable_button` | `4` | button held to drive: `4` = LB in X-input mode (11 buttons in `/joy`; seen in `/joy`, not yet confirmed driving); `6` = L1 in D-input mode (15 buttons in `/joy`; confirmed driving the robot) |
+| `enable_button` | `4` | button held to drive: `4` = LB in X-input mode (11 buttons in `/joy`), `6` = L1 in D-input mode (15 buttons in `/joy`); both drove the robot |
 | `scale_linear` | `0.15` | forward speed in m/s at full stick (Burger maximum is about 0.22) |
 | `scale_angular` | `1.0` | turning speed in rad/s at full stick (Burger maximum is about 2.84) |
 | `stamped` | `true` | `/cmd_vel` as `TwistStamped`, which `turtlebot3_node` expects on the robot; `false` for plain `Twist` |
@@ -100,7 +100,8 @@ Arguments (add them to the same command, for example `gamepad:=true enable_butto
 - The robot moves only while you hold the enable button. Release it to stop.
 - **Check once with the wheels in the air** before driving on the floor. Hold the enable button, push the stick up and watch `ros2 topic echo /cmd_vel`: `linear.x` must be positive, and stick left must give a positive `angular.z` (the robot turns left).
 - **`/cmd_vel` type:** on the robot `turtlebot3_node` subscribes to `TwistStamped` (checked with `ros2 topic info /cmd_vel -v`), so the default is `stamped:=true`. With the wrong type the robot ignores the commands, and `ros2 topic echo /cmd_vel` fails with "contains more than one type". If you ever see that, publisher and subscriber disagree: set `stamped` to the type shown on the `SUBSCRIPTION` line.
-- **Tested on the robot:** `bringup.launch.py gamepad:=true` drives the robot while the enable button is held (confirmed in D-input mode with `enable_button:=6`). The pad can come back in the other mode after it was off or re-paired: `ros2 topic echo /joy --field buttons` shows 11 entries in X-input and 15 in D-input, and the entry that turns 1 while you hold L1 is the `enable_button`.
+- **Tested on the robot:** `bringup.launch.py gamepad:=true` drives the robot while the enable button is held, in D-input mode with `enable_button:=6` and in X-input mode with 4.
+- **The mode can change after a restart or re-pairing.** The pad came back in X-input after a restart, and `enable_button:=6` did nothing. `ros2 topic echo /joy --field buttons` shows 11 entries in X-input and 15 in D-input, and the position that turns 1 while you hold L1 is the `enable_button` to pass.
 - **No reaction:** `ros2 topic echo /joy` shows whether the pad arrives (`buttons[]` changes when you press L1). If the index of L1 differs from `enable_button`, use the one you see.
 
 ## Manual mapping with the gamepad
@@ -111,7 +112,7 @@ Mapping does not change: it runs on the PC and listens to `/cmd_vel`, whoever pu
 ~/turtlebot3-setup/scripts/mapping.sh --gamepad
 ```
 
-`--gamepad` which leaves out the keyboard teleop. Do not run the keyboard teleop next to the gamepad: it publishes zero speed on `/cmd_vel` while idle, between the gamepad's commands, and the robot jerks (seen as `0.1266, 0.0, 0.1266, 0.1266, 0.0, …` in `ros2 topic echo /cmd_vel`; `ros2 node list` shows `/teleop_keyboard`). Drive with the gamepad (hold the enable button) and watch the map grow in RViz. Drive slowly (the default 0.15 m/s) so SLAM can match the scans; turns are the hard part, so make them gently.
+`--gamepad` leaves out the keyboard teleop. Do not run the keyboard teleop next to the gamepad: it publishes zero speed on `/cmd_vel` while idle, between the gamepad's commands, and the robot jerks (seen as `0.1266, 0.0, 0.1266, 0.1266, 0.0, …` in `ros2 topic echo /cmd_vel`; `ros2 node list` shows `/teleop_keyboard`). Drive with the gamepad (hold the enable button) and watch the map grow in RViz. Drive slowly (the default 0.15 m/s) so SLAM can match the scans; turns are the hard part, so make them gently.
 
 ## Problems
 
@@ -122,5 +123,7 @@ Mapping does not change: it runs on the PC and listens to `/cmd_vel`, whoever pu
   ```
 
   Log out and back in (or reboot); the installer does this on new robots, and `scripts/check.sh` warns about it.
-- **No `js0`:** run `sudo modprobe joydev`, then re-pair the pad.
+- **The robot jerks (stops and goes) although the keyboard drives smoothly:** a second publisher on `/cmd_vel` sends zeros between the gamepad's commands, most likely `teleop_keyboard` from the mapping window on the PC. Look at `ros2 topic echo /cmd_vel geometry_msgs/msg/TwistStamped --field twist.linear.x` (zeros in between), `ros2 topic info /cmd_vel -v` (more than one publisher) and `ros2 node list` (`/teleop_keyboard`). Stop the keyboard teleop (`Ctrl+C` in its pane) or start the mapping with `mapping.sh --gamepad`.
+- **`ros2 topic echo /cmd_vel` says "contains more than one type":** the gamepad publishes `Twist` and the robot expects `TwistStamped` (or the reverse). The default `stamped:=true` matches the robot; see the `/cmd_vel` type item above.
+- **No `js0`:** run `sudo modprobe joydev`, then re-pair the pad. After a restart the pad sleeps (1 minute without the link): wake it with HOME (2 s) and pair again with X + HOME if the LEDs do not stay on.
 - **Receiver or lidar drops out, `Undervoltage detected!`:** check `vcgencmd get_throttled` (`0x0` is fine). Without the battery the Pi relies entirely on the OpenCR adapter. See [troubleshooting](troubleshooting.md).
