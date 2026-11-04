@@ -16,7 +16,8 @@ Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT**
 | 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
 | 8 | ROBOT | Optional: show the battery voltage in the tmux status bar | [docs/battery-status.md](docs/battery-status.md) |
-| 9 | ROBOT | If the LiDAR gives few points or 2.5 scans per second: robust LDS-01 driver | [docs/lidar-driver.md](docs/lidar-driver.md) |
+| 9 | ROBOT | LiDAR is the RPLiDAR A1M8: install its driver on an existing robot (`scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) |
+| 10 | ROBOT | Only with the old LDS-01 and few points or 2.5 scans per second: robust LDS-01 driver | [docs/lidar-driver.md](docs/lidar-driver.md) |
 
 From the second day on, and for updating both machines from GitHub, use [docs/workflow.md](docs/workflow.md): what to run on the PC, what on the Raspberry Pi, and in which order. When something does not work, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
@@ -26,7 +27,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 |---|---|
 | Robot | TurtleBot3 Burger |
 | Single-board computer | Raspberry Pi 3B+ (1 GB RAM) |
-| LiDAR | LDS-01 |
+| LiDAR | Slamtec RPLiDAR A1M8 (replaced the LDS-01) |
 | Motor controller | OpenCR 1.0 |
 | Remote PC | Windows 11 + WSL2 (Ubuntu 24.04) |
 
@@ -48,6 +49,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 📝 written, frontier logic unit-tested, not yet run in Gazebo or on the robot |
 | EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
 | Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
+| RPLiDAR A1M8 (`rplidar_ros`, `scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) | 📝 written, not yet run on the robot |
 | Robust LDS-01 driver (`robot/lds01_driver.py`) | [docs/lidar-driver.md](docs/lidar-driver.md) | ✅ working (5 scans per second and about 190 valid rays per scan on the robot) |
 | SLAM and navigation on the real robot | – | ⏳ not done yet |
 
@@ -92,7 +94,7 @@ git -C ~/turtlebot3-setup pull
 
 Nothing is built on the Pi for this repository; `robot/` runs straight from the clone. Restart the bring-up if `robot/` changed. Never build `auto_mapper` or install SLAM/Nav2/RViz there.
 
-If the change adds a package to `scripts/install.sh`, install just that one with `sudo apt install <package>` on the machine it is for, or run the installer again (finished steps are skipped). Check that both machines run the same version with `git -C ~/turtlebot3-setup log --oneline -1`. If `git pull` complains about local changes, see [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md).
+If the change adds a package to `scripts/install.sh`, install just that one with `sudo apt install <package>` on the machine it is for, or run the installer again (finished steps are skipped, but it asks every question again). For the LiDAR there is a shortcut, `scripts/set-lidar.sh` ([docs/rplidar.md](docs/rplidar.md)). Check that both machines run the same version with `git -C ~/turtlebot3-setup log --oneline -1`. If `git pull` complains about local changes, see [docs/robot-raspberry-pi.md](docs/robot-raspberry-pi.md).
 
 ## Common settings
 

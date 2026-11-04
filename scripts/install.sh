@@ -277,7 +277,8 @@ confirm "Use CycloneDDS (rmw_cyclonedds_cpp, recommended by ROBOTIS; set it on P
 DO_SWAP=0; DO_NO_AUTOUPGRADE=0; DO_OPENCR=0; DO_WIFI_PS=0; LDS_MODEL=""
 WLAN_IF=$(ls /sys/class/net 2>/dev/null | grep -m1 '^wl' || true)
 if [[ $ROLE == robot ]]; then
-  choose LDS_MODEL "LiDAR model" LDS-01 LDS-01 LDS-02 LDS-03
+  # RPLIDAR-A1 is not a ROBOTIS model: robot/launch/robot_common.py starts rplidar_ros for it.
+  choose LDS_MODEL "LiDAR model" RPLIDAR-A1 RPLIDAR-A1 LDS-01 LDS-02 LDS-03
   if [[ $MEM_MB -lt 2048 && ! -f /swapfile ]]; then
     confirm "Less than 2 GB RAM: create a 3 GB swap file (needed for the build)?" y && DO_SWAP=1
   fi
@@ -439,6 +440,10 @@ else
     ros-$ROS_DISTRO_NAME-hls-lfcd-lds-driver ros-$ROS_DISTRO_NAME-turtlebot3-msgs \
     ros-$ROS_DISTRO_NAME-dynamixel-sdk ros-$ROS_DISTRO_NAME-xacro libudev-dev \
     ros-$ROS_DISTRO_NAME-robot-localization python3-serial
+  if [[ $LDS_MODEL == RPLIDAR-A1 ]]; then
+    info "RPLiDAR A1M8: the driver is the rplidar_ros package."
+    apt_install ros-$ROS_DISTRO_NAME-rplidar-ros
+  fi
 fi
 
 if [[ $USE_CYCLONE -eq 1 ]]; then

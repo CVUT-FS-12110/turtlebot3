@@ -29,7 +29,7 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 - **The Pi freezes during a long build and `journalctl -b -1` shows `blocked for more than 245 seconds` in `mmc_rescan`:** the SD card is too slow for small writes, even if its sequential speed looks fine. Test it and replace it with an A1/A2 card, see [robot-raspberry-pi.md](robot-raspberry-pi.md#10-choose-a-fast-sd-card).
 - **`apt` is locked:** automatic upgrades are running. Wait, or disable them (the installer offers it).
 - **Topics lag or drop over Wi-Fi:** disable Wi-Fi power saving (`iw dev wlan0 get power_save` should say `off`), move to 5 GHz, and keep the PC on the same access point.
-- **`ros2 launch` cannot find the LiDAR:** check `ls /dev/ttyUSB*` and the `LDS_MODEL` variable (`LDS-01` for your robot).
+- **`ros2 launch` cannot find the LiDAR:** check `ls /dev/ttyUSB*` and the `LDS_MODEL` variable (`RPLIDAR-A1` for your robot, see [rplidar.md](rplidar.md); start it with this repository's `robot/launch/bringup.launch.py`, not with `turtlebot3_bringup`'s own launch file, which starts the LDS-01 driver for an unknown model).
 
 ## The clocks of the PC and the robot differ
 
@@ -58,6 +58,8 @@ Check with `chronyc tracking`: the reference is `PHC0` and `System time` is in m
 **ROBOT (Pi):** `timedatectl` must say `System clock synchronized: yes`; if not, `sudo timedatectl set-ntp true` (the Pi has no battery-backed clock and needs a network connection with Internet access after every power-up). The Pi was within 0.03 s of NTP time when measured.
 
 ## The LiDAR gives few valid points or only 2.5 scans per second
+
+*This section is about the old LDS-01. For the RPLiDAR A1M8 see [rplidar.md](rplidar.md).*
 
 The LDS-01 cannot be configured (fixed firmware, no gain or power setting), so find out first whether the sensor, the link or the surroundings are at fault. [`scripts/lds01_check.py`](../scripts/lds01_check.py) reads the sensor straight from its serial port, without ROS, and prints per revolution the rotation speed, how many of the 60 packets arrived and how many of the 360 readings are valid:
 

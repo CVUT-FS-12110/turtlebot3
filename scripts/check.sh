@@ -30,7 +30,10 @@ fi
 if grep -qi "raspberry pi" /proc/device-tree/model 2>/dev/null; then
   echo; echo "Robot hardware"
   [[ -e /dev/ttyACM0 ]] && ok "OpenCR found at /dev/ttyACM0" || fail "/dev/ttyACM0 missing: OpenCR not connected or not powered (turn its switch on)"
-  [[ -e /dev/ttyUSB0 ]] && ok "LiDAR found at /dev/ttyUSB0" || warn "/dev/ttyUSB0 missing: LDS-01 not connected (LDS-02/03 use other ports)"
+  [[ -e /dev/ttyUSB0 ]] && ok "LiDAR found at /dev/ttyUSB0" || warn "/dev/ttyUSB0 missing: ${LDS_MODEL:-LiDAR} not connected (LDS-02/03 use other ports)"
+  if [[ ${LDS_MODEL:-} == RPLIDAR-A1 ]]; then
+    dpkg -s ros-jazzy-rplidar-ros >/dev/null 2>&1 && ok "rplidar_ros installed" || fail "rplidar_ros missing: run scripts/set-lidar.sh RPLIDAR-A1"
+  fi
   id -nG | grep -qw dialout && ok "user is in the dialout group" || fail "user is not in dialout (log out and back in after the installer)"
   if command -v iw >/dev/null; then
     for dev in /sys/class/net/wl*; do

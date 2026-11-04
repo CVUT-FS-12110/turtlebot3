@@ -126,7 +126,7 @@ The installer's `~/.tmux.conf` block is meant for running several ROS 2 programs
 
 The status bar shows `ROS_DOMAIN_ID`, the robot model and the load average. A load above the number of cores (4 on a Pi 3B+) means the Pi is busy, for example during a build. Pane borders show the program running in each pane.
 
-Choose role `robot`. It can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` group applies.
+Choose role `robot` and the LiDAR model `RPLIDAR-A1` (the default; `LDS-01`, `LDS-02` and `LDS-03` are the ROBOTIS ones). To switch an already installed robot to the RPLiDAR without the installer, see [rplidar.md](rplidar.md). The installer can create a swap file, disable automatic apt upgrades, install CycloneDDS, disable Wi-Fi power saving, install the udev rules, build the workspace (over an hour on a Pi, keep it on wall power) and flash the OpenCR. Log out and back in afterwards so the `dialout` group applies.
 
 ## 3. Flash the OpenCR
 
@@ -149,10 +149,10 @@ Test the motors without ROS: with the wheels in the air, hold **SW1** (forward) 
 
 ## 4. Bring-up
 
-On the robot:
+On the robot (with the RPLiDAR use this repository's launch file; `turtlebot3_bringup`'s own `robot.launch.py` does not know the model and starts the LDS-01 driver, see [rplidar.md](rplidar.md)):
 
 ```bash
-ros2 launch turtlebot3_bringup robot.launch.py
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 ```
 
 On the PC (new terminal, same `ROS_DOMAIN_ID`, same `RMW_IMPLEMENTATION`):
