@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 
 from auto_mapper.frontiers import (
-    choose_frontier, cluster_cells, find_frontiers, Frontier, frontier_mask, Grid,
-    is_frontier_cell, reachable_distances)
+    choose_frontier, cluster_cells, downsample, find_frontiers, Frontier, frontier_mask,
+    frontier_near, Grid, reachable_distances)
 
 FREE = 25
 
@@ -67,8 +67,62 @@ class FrontierTest(unittest.TestCase):
         found = find_frontiers(grid, (3.5, 0.5), min_size=1, free_threshold=FREE)
         self.assertEqual(len(found), 1)
         again = find_frontiers(grid, (3.5, 0.5), min_size=1, free_threshold=FREE,
-                               blacklist=[(found[0].x, found[0].y)], blacklist_radius=0.5)
+                               blacklist=[(found[0].x, found[0].y)], blacklist_radius=1.5)
         self.assertEqual(again, [])
+
+    def test_blacklist_keeps_the_rest_of_a_long_frontier(self):
+        grid = make_grid(['?.'] * 10)
+        found = find_frontiers(grid, (1.5, 0.5), min_size=1, free_threshold=FREE,
+                               blacklist=[(1.5, 0.5)], blacklist_radius=2.0)
+        self.assertEqual(len(found), 1)
+        self.assertGreater(found[0].y, 2.0)
+
+    def test_downsample_removes_gaps_between_scan_rays(self):
+        grid = make_grid(['.?..',
+                          '....',
+                          '..#.',
+                          '....'])
+        small = downsample(grid, 2, FREE)
+        self.assertEqual(small.resolution, 2.0)
+        self.assertEqual(small.data.shape, (2, 2))
+        self.assertFalse((small.data == -1).any())
+        self.assertEqual(small.data[0, 1], 100)   # one occupied cell makes the block occupied
+        self.assertEqual(small.data[1, 0], 0)     # one unknown cell does not make it unknown
+
+    def test_downsample_pads_with_unknown(self):
+        small = downsample(make_grid(['...']), 2, FREE)
+        self.assertEqual(small.data.shape, (1, 2))
+        self.assertEqual(small.data[0, 1], 0)
+
+    def test_gap_narrower_than_the_robot_is_not_reachable(self):
+        grid = make_grid(['#########',
+                          '....#...?',
+                          '.........',
+                          '....#...?',
+                          '#########'])
+        self.assertEqual(len(find_frontiers(grid, (1.5, 2.5), 1, FREE)), 1)
+        self.assertEqual(find_frontiers(grid, (1.5, 2.5), 1, FREE, clearance=1.0), [])
+
+    def test_robot_next_to_a_wall_can_still_leave(self):
+        grid = make_grid(['########',
+                          '.......?',
+                          '.......?',
+                          '.......?',
+                          '.......?',
+                          '.......?',
+                          '########'])
+        found = find_frontiers(grid, (1.5, 5.5), 1, FREE, clearance=1.0)
+        self.assertEqual(len(found), 1)
+
+    def test_cells_under_the_robot_are_not_goals(self):
+        grid = make_grid(['?????',
+                          '?...?',
+                          '?...?',
+                          '?...?',
+                          '?????'])
+        robot = (2.5, 2.5)
+        self.assertEqual(len(find_frontiers(grid, robot, 1, FREE)), 1)
+        self.assertEqual(find_frontiers(grid, robot, 1, FREE, min_distance=2.0), [])
 
     def test_fully_explored_map_has_no_frontiers(self):
         grid = make_grid(['#####',
@@ -76,11 +130,13 @@ class FrontierTest(unittest.TestCase):
                           '#####'])
         self.assertEqual(find_frontiers(grid, (2.5, 1.5), min_size=1, free_threshold=FREE), [])
 
-    def test_is_frontier_cell(self):
-        grid = make_grid(['?..#'])
-        self.assertTrue(is_frontier_cell(grid.data, 0, 1, FREE))
-        self.assertFalse(is_frontier_cell(grid.data, 0, 2, FREE))
-        self.assertFalse(is_frontier_cell(grid.data, 5, 5, FREE))
+    def test_frontier_near(self):
+        grid = make_grid(['?....#'])
+        self.assertTrue(frontier_near(grid.data, 0, 1, FREE, 0))
+        self.assertFalse(frontier_near(grid.data, 0, 3, FREE, 0))
+        self.assertTrue(frontier_near(grid.data, 0, 3, FREE, 2))
+        self.assertFalse(frontier_near(grid.data, 5, 5, FREE, 2))
+        self.assertFalse(frontier_near(grid.data, -9, -9, FREE, 2))
 
     def test_choose_prefers_near_and_long(self):
         near_short = Frontier(0, 0, size=2, distance=1.0)

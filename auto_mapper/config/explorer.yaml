@@ -3,10 +3,19 @@ explorer:
     map_frame: map
     robot_frame: base_footprint
     free_threshold: 25          # occupancy below this counts as free (0-100)
-    min_frontier_size: 5        # ignore frontiers shorter than this many cells (5 cm each)
+    analysis_resolution: 0.05   # m per cell the map is reduced to before looking for frontiers
+    min_frontier_size: 5        # ignore frontiers shorter than this many cells (analysis_resolution each)
     size_weight: 0.5            # >0 prefers long frontiers over short, nearer ones
+    clearance: 0.15             # m from obstacles for paths and goals; Burger radius 0.105 + margin
+    min_goal_distance: 0.35     # m; nearer cells are no goals (Nav2 goal tolerance is 0.25, it would not move)
     blacklist_radius: 0.5       # m around a failed goal that is not tried again
+    blacklist_retries: 1        # times the blacklist is cleared and retried before finishing
+    initial_spin: true          # turn 360 degrees first, so SLAM starts with all the surroundings
+    max_offmap_spins: 3         # turns while the robot is outside the map before giving up (and saving)
     goal_timeout: 90.0          # s before a goal is cancelled and blacklisted
+    goal_frontier_radius: 0.25  # m; a goal counts as explored when no frontier is left this close to it
+    settle_time: 3.0           # s after a goal before judging it, the map updates every 2 s
+    reject_backoff: 2.0         # s before sending a goal again after Nav2 rejected it (not active yet)
     finish_after_empty_ticks: 5 # consecutive ticks without a frontier before the map is saved
     save_map: true
     map_path: ~/maps/auto_map

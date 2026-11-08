@@ -8,7 +8,13 @@ The [`auto_mapper`](../auto_mapper) package lets the robot build a map of a room
                                       no frontier left ──► map_saver_cli ──► ~/maps/auto_map.{yaml,pgm}
 ```
 
-The `explorer` node looks for **frontiers**: free cells that touch unknown cells. It groups them into clusters, keeps the ones the robot can reach through known free space, and sends the cheapest one (path length minus a bonus for a long frontier) to Nav2. A goal that fails, times out or is reached without clearing the frontier is blacklisted. When no reachable frontier is left for 5 ticks in a row, it saves the map and exits.
+The `explorer` node first turns the robot once in place (Nav2 `spin`), so SLAM starts with all the surroundings. Then it looks for **frontiers**: free cells that touch unknown cells. It works on the map reduced to 5 cm cells, so single unknown cells between the rays of a scan do not count. It groups the frontier cells into clusters and keeps the ones the robot can reach through known free space with 15 cm clearance from obstacles (gaps narrower than the robot are skipped). It sends the cheapest one (path length minus a bonus for a long frontier) to Nav2. Cells closer than 0.35 m to the robot are never goals, because Nav2 would report them as reached without moving.
+
+A goal whose surroundings get explored on the way is cancelled and the next one follows at once. A goal that fails, times out or is reached without clearing its frontier is blacklisted, judged 3 s later so that the map has caught up. When no reachable frontier is left for 5 ticks in a row, it clears the blacklist and tries those goals once more. Then it saves the map and exits.
+
+Nav2 rejects goals until all its servers are active; that is not held against the goal, the explorer just tries again 2 s later. If the robot ends up outside the known map (Nav2 cannot plan from there), it turns in place to let SLAM grow the map; after 3 such turns without success it gives up and saves what there is. All times follow the ROS clock, so they also hold in a slow simulation.
+
+The launch file starts Nav2 with the ROBOTIS parameters for the Burger, with two changes. `collision_monitor` only stops the robot after 1 s without a scan instead of 0.2 s; with 0.2 s the scan period plus Wi-Fi jitter stopped the robot hundreds of times in the simulation. The top speed is 0.18 m/s, set with `max_speed:=` (the default 0.3 m/s is above the 0.22 m/s the Burger can do).
 
 ## Install
 
@@ -65,11 +71,21 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 
 | Parameter | Default | Meaning |
 |---|---|---|
+| `analysis_resolution` | 0.05 m | Cell size the map is reduced to before looking for frontiers |
 | `min_frontier_size` | 5 | Ignore frontiers shorter than this many cells (5 cm each) |
 | `size_weight` | 0.5 | Higher prefers long frontiers over near ones; 0 means always the nearest |
+| `clearance` | 0.15 m | Distance from obstacles for paths and goals (Burger radius 0.105 m + margin) |
+| `min_goal_distance` | 0.35 m | Nearer frontier cells are no goals |
+| `goal_frontier_radius` | 0.25 m | A goal counts as explored when no frontier is left this close to it |
 | `blacklist_radius` | 0.5 m | Area around a failed goal that is not tried again |
+| `blacklist_retries` | 1 | How often the blacklist is cleared and retried before finishing |
+| `initial_spin` | true | Turn 360° before the first goal |
+| `max_offmap_spins` | 3 | Turns while outside the map before giving up |
 | `goal_timeout` | 90 s | Time after which a goal is cancelled and blacklisted |
+| `settle_time` | 3 s | Wait after a goal before judging it (the map updates every 2 s) |
 | `finish_after_empty_ticks` | 5 | Ticks without a frontier before the map is saved |
+
+Launch arguments of `auto_mapper.launch.py`: `use_sim_time`, `max_speed` (0.18 m/s), `explorer_params`, `slam_params`.
 
 ## Tests
 
@@ -81,7 +97,35 @@ cd auto_mapper && python3 -m unittest discover -s test
 
 ## Status and limits
 
-- The frontier logic is unit-tested. The node, launch file and Nav2 integration are **not yet run** in Gazebo or on the robot, so the first run may need tuning.
-- The launch file reuses the Nav2 parameters from `turtlebot3_navigation2` (`$TURTLEBOT3_MODEL.yaml`) and starts only the Nav2 navigation servers, without AMCL and `map_server`.
-- On the real robot keep the gamepad ([gamepad.md](gamepad.md)) at hand to take over if the robot gets stuck.
-- The explorer treats all known free cells as passable; Nav2 checks clearance and rejects goals too close to walls, which are then blacklisted.
+- **Gazebo, `turtlebot3_world`:** verified on the PC (WSL2, headless Gazebo, Nav2 1.3.13). The robot explores the whole arena by itself, finishes and saves the map in 5 to 7 minutes. No stop from `collision_monitor`.
+- **Gazebo, `turtlebot3_house`:** not usable in WSL2. The world renders so slowly that the LiDAR runs at about 1 Hz, and SLAM stopped adding scans after the first one. The explorer then turned in place; this run is why it now gives up after `max_offmap_spins`. Try it on a PC with a GPU, or skip it.
+- **Real robot:** not run yet, see [First test on the robot](#first-test-on-the-robot).
+- The launch file reuses the Nav2 parameters from `turtlebot3_navigation2` (`$TURTLEBOT3_MODEL.yaml`, with the changes above). It starts only the Nav2 navigation servers, without AMCL and `map_server`.
+- SLAM ignores readings beyond the LiDAR's range, so in a room larger than that no free space is seen and no frontier appears. This does not matter for the RPLiDAR (12 m), but it did for the simulated LDS-01 (3.5 m) in the large house rooms.
+
+## First test on the robot
+
+The robot code does not change for automatic mapping; everything new runs on the PC.
+
+**ROBOT (Pi, over SSH):** the usual bring-up, without the gamepad. Nav2 and the gamepad would both publish `/cmd_vel` and fight each other.
+
+```bash
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
+```
+
+**PC (WSL2):** switch to the test branch, rebuild once (`package.xml` changed), start the auto mode:
+
+```bash
+git -C ~/turtlebot3-setup fetch && git -C ~/turtlebot3-setup checkout feature/auto-mapping
+cd ~/turtlebot3_ws && source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --packages-select auto_mapper
+~/turtlebot3-setup/scripts/mapping.sh auto
+```
+
+Start in a small closed room with nothing the LiDAR cannot see (glass, low edges, stairs). Stay next to the robot. **Stop:** `Ctrl+C` in the `auto_mapper` pane, or switch the robot off. What to watch in the `auto_mapper` pane:
+
+- `Turning around to scan the surroundings`, then `Going to frontier ...`: it works.
+- `Nav2 is not accepting goals yet` more than a few times: Nav2 did not start, look for `[ERROR]` above.
+- `Robot to stop due to invalid source` from `collision_monitor`: scans arrive too late (Wi-Fi, clock offset, see [troubleshooting.md](troubleshooting.md)).
+- The robot oscillates in front of an obstacle: lower the speed with `ros2 launch auto_mapper auto_mapper.launch.py max_speed:=0.12`.
+
+Back on master: `git -C ~/turtlebot3-setup checkout master` and the same `colcon build`.

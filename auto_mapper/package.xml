@@ -17,6 +17,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>turtlebot3_navigation2</exec_depend>
 
