@@ -5,7 +5,7 @@
 # them itself. Both inputs come through covariance_fixer.py, because turtlebot3_node publishes zero covariances.
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    frequency: 15.0                 # 30 Hz was too much for the Pi 3B+ ("Failed to meet update rate")
     two_d_mode: true
     publish_tf: true
     predict_to_current_time: true   # keeps the odom -> base_footprint transform fresh for SLAM

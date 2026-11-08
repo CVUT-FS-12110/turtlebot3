@@ -40,7 +40,7 @@ ros2 topic hz /odometry/filtered
 ros2 topic info /tf -v | grep -i node
 ```
 
-`/odometry/filtered` should run at about 30 Hz, and `odom → base_footprint` must come from `ekf_filter_node` only.
+`/odometry/filtered` should run at about 15 Hz, and `odom → base_footprint` must come from `ekf_filter_node` only.
 
 ## Tuning
 
@@ -53,6 +53,7 @@ A larger variance means less trust. If the map is rotated or smeared after turns
 
 ## Problems
 
+- **`ekf_filter_node: Failed to meet update rate! Took 0.03…0.15 seconds`**: one filter cycle took longer than its period, because the Pi 3B+ is busy (LiDAR driver, SLAM traffic, Wi-Fi). Occasional lines are harmless: the filter just runs late and `predict_to_current_time` keeps the transform fresh. The rate is therefore 15 Hz, which is plenty for SLAM. If the lines still come in a stream, lower `frequency` in [`ekf.yaml`](../robot/config/ekf.yaml) further (10), check `top` on the Pi for other CPU hogs and see [troubleshooting.md](troubleshooting.md).
 - **Two sources of `odom → base_footprint`** (the tree flickers, `TF_REPEATED_DATA` warnings): the normal `robot.launch.py` is running too. Stop it and use only `bringup_ekf.launch.py`.
 - **`has no "publish_tf: true"`**: the installed `turtlebot3_bringup` parameters changed; check `param/burger.yaml` and adjust `params_without_odom_tf` in the launch file.
 - **To go back**: stop the EKF launch and start `ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py` (the plain `turtlebot3_bringup robot.launch.py` does not know the RPLiDAR, see [rplidar.md](rplidar.md)).
