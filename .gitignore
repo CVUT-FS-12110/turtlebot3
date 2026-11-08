@@ -1,0 +1,3 @@
+# Python caches (created when launch files or scripts run straight from this clone)
+__pycache__/
+*.pyc
