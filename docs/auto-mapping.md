@@ -47,7 +47,7 @@ A running manual session (with or without `--gamepad`) can hand the robot to Nav
 ~/turtlebot3-setup/scripts/mapping.sh drive     # stops them (the robot halts) and starts the keyboard teleop again
 ```
 
-`explore` starts `auto_mapper.launch.py slam:=false`, which uses the running SLAM instead of starting a second one. The explorer begins with its turn in place and explores from the current map. With the gamepad, keep your hands off it while exploring: holding the enable button would fight Nav2.
+`explore` starts `auto_mapper.launch.py slam:=false`, which uses the running SLAM instead of starting a second one. RViz keeps the manual view; its group **Nav2 and explorer** then shows the global plan (green), the local plan (blue), both costmaps, the robot footprint, the frontier targets (yellow) and the current goal (magenta, topic `/explorer/frontiers`). The explorer begins with its turn in place and explores from the current map. With the gamepad, keep your hands off it while exploring: holding the enable button would fight Nav2.
 
 Switching needs a session started by this version of `mapping.sh`. `mapping.sh auto` does not need it: it runs everything from the start. Switching `manual` ↔ `auto` with `--restart` starts a new SLAM and loses the map.
 

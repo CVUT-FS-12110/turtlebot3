@@ -60,6 +60,95 @@ Visualization Manager:
       Show Arrows: true
       Show Axes: true
       Show Names: false
+    # Filled only while Nav2 runs (mapping.sh explore or auto); empty in plain manual mapping.
+    - Class: rviz_common/Group
+      Name: Nav2 and explorer
+      Enabled: true
+      Displays:
+        - Class: rviz_default_plugins/Map
+          Name: Global Costmap
+          Enabled: true
+          Alpha: 0.3
+          Color Scheme: costmap
+          Draw Behind: false
+          Topic:
+            Value: /global_costmap/costmap
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+          Update Topic:
+            Value: /global_costmap/costmap_updates
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+          Use Timestamp: false
+        - Class: rviz_default_plugins/Map
+          Name: Local Costmap
+          Enabled: true
+          Alpha: 0.5
+          Color Scheme: costmap
+          Draw Behind: false
+          Topic:
+            Value: /local_costmap/costmap
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+          Update Topic:
+            Value: /local_costmap/costmap_updates
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+          Use Timestamp: false
+        - Class: rviz_default_plugins/Path
+          Name: Global Plan
+          Enabled: true
+          Color: 0; 220; 0
+          Line Style: Billboards
+          Line Width: 0.03
+          Alpha: 1
+          Topic:
+            Value: /plan
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+        - Class: rviz_default_plugins/Path
+          Name: Local Plan
+          Enabled: true
+          Color: 0; 160; 255
+          Line Style: Billboards
+          Line Width: 0.04
+          Alpha: 1
+          Topic:
+            Value: /local_plan
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+        - Class: rviz_default_plugins/Polygon
+          Name: Footprint
+          Enabled: true
+          Color: 255; 255; 255
+          Alpha: 1
+          Topic:
+            Value: /local_costmap/published_footprint
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+        - Class: rviz_default_plugins/MarkerArray
+          Name: Frontiers and goal
+          Enabled: true
+          Topic:
+            Value: /explorer/frontiers
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
   Global Options:
     Background Color: 48; 48; 48
     Fixed Frame: map

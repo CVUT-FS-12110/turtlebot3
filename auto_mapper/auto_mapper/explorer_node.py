@@ -5,7 +5,7 @@ import os
 import subprocess
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from nav2_msgs.action import NavigateToPose, Spin
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
@@ -15,6 +15,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 import tf2_ros
+from visualization_msgs.msg import Marker, MarkerArray
 
 from auto_mapper.frontiers import (
     choose_frontier, downsample, find_frontiers, frontier_near, Grid)
@@ -67,6 +68,9 @@ class Explorer(Node):
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                          durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(OccupancyGrid, 'map', self.on_map, qos)
+        # For RViz: frontier targets (yellow, size by length) and the current goal (magenta).
+        self.markers = self.create_publisher(MarkerArray, '~/frontiers', 1)
+        self.frontiers = []
         self.create_timer(period, self.tick)
         self.get_logger().info('Waiting for /map, TF and the navigate_to_pose action server...')
 
@@ -137,6 +141,7 @@ class Explorer(Node):
                                    self.blacklist, self.blacklist_radius,
                                    self.clearance, self.min_goal_distance)
         target = choose_frontier(frontiers, self.size_weight, self.grid.resolution)
+        self.frontiers = frontiers
         if target is None:
             self.empty_ticks += 1
             if self.empty_ticks >= self.finish_after:
@@ -175,6 +180,27 @@ class Explorer(Node):
         self.goal_xy = (target.x, target.y)
         self.goal_time = self.now()
         self.nav.send_goal_async(goal).add_done_callback(self.on_goal_response)
+        self.publish_markers()
+
+    def publish_markers(self):
+        """Frontier targets and the current goal. Stamp 0: RViz draws them with the newest transform."""
+        def marker(ns, kind, size, rgba):
+            m = Marker()
+            m.header.frame_id = self.map_frame
+            m.ns, m.id, m.type = ns, 0, kind
+            m.pose.orientation.w = 1.0
+            m.scale.x = m.scale.y = m.scale.z = size
+            m.color.r, m.color.g, m.color.b, m.color.a = rgba
+            return m
+
+        frontiers = marker('frontiers', Marker.SPHERE_LIST, 0.08, (1.0, 0.85, 0.0, 0.9))
+        frontiers.points = [Point(x=f.x, y=f.y) for f in self.frontiers]
+        goal = marker('goal', Marker.SPHERE, 0.2, (1.0, 0.0, 1.0, 0.9))
+        if self.busy and self.goal_xy:
+            goal.pose.position.x, goal.pose.position.y = self.goal_xy
+        else:
+            goal.action = Marker.DELETE
+        self.markers.publish(MarkerArray(markers=[frontiers, goal]))
 
     def on_goal_response(self, future):
         self.goal_handle = future.result()
@@ -191,6 +217,7 @@ class Explorer(Node):
         status = future.result().status
         self.goal_handle = None
         self.busy = False
+        self.publish_markers()
         if self.goal_cleared:
             self.goal_cleared = False   # nothing to judge, go straight to the next frontier
             return
