@@ -32,4 +32,7 @@ explorer:
     # Points from RViz
     user_goal_snap: 0.4         # m; a goal that is not reachable moves to the nearest reachable cell within this
     focus_weight: 1.0           # m of cost per m between a frontier and the focus (0: the focus changes nothing)
-    focus_radius: 1.5           # m around the focus; once its spot is known and no frontier is left in it, the focus is dropped
+    home_x: 0.0                 # m; where the Home button in RViz sends the robot: the start of the map (map frame)
+    home_y: 0.0
+    home_yaw: 0.0               # rad; heading there, 0 is the heading SLAM started with
+    focus_radius: 1.5          # m around the focus; once its spot is known and no frontier is left in it, the focus is dropped

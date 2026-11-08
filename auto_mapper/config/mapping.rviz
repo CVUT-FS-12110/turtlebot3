@@ -159,7 +159,7 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
         - Class: rviz_default_plugins/InteractiveMarkers
-          Name: Geofence handles
+          Name: Handles (geofence, focus, home)
           Enabled: true
           Interactive Markers Namespace: /geofence_handles
           Show Axes: false

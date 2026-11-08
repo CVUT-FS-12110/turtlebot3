@@ -68,6 +68,10 @@ class Explorer(Node):
         self.user_goal_snap = self.declare_parameter('user_goal_snap', 0.4).value
         self.focus_weight = self.declare_parameter('focus_weight', 1.0).value
         self.focus_radius = self.declare_parameter('focus_radius', 1.5).value
+        # The start of the map, where the Home button in RViz sends the robot: map (0, 0) is where SLAM
+        # started, with the x axis along the robot's heading then.
+        self.home = (self.declare_parameter('home_x', 0.0).value, self.declare_parameter('home_y', 0.0).value,
+                     self.declare_parameter('home_yaw', 0.0).value)
         preset = self.declare_parameter('geofence', Parameter.Type.DOUBLE_ARRAY).value
         self.geofence_file = self.declare_parameter('geofence_file', '').value
 
@@ -136,6 +140,7 @@ class Explorer(Node):
         self.focus_menu = MenuHandler()
         self.menu_focus_on = self.focus_menu.insert('Explore around here first', callback=self.on_focus_menu)
         self.menu_focus_off = self.focus_menu.insert('Explore everywhere', callback=self.on_focus_menu)
+        self.update_home_marker()
         self.create_timer(1.0, self.publish_geofence_markers)
         self.create_timer(period, self.tick)
         self.get_logger().info('Waiting for /map, TF and the navigate_to_pose action server...')
@@ -163,7 +168,8 @@ class Explorer(Node):
         return t.transform.translation.x, t.transform.translation.y
 
     def tick(self):
-        if self.done or self.grid is None:
+        # After the map is saved only goals from RViz are served (the node stays up with a geofence).
+        if self.grid is None or (self.done and self.user_goal is None and not self.busy):
             return
         robot = self.robot_xy()
         if robot is None:
@@ -198,7 +204,9 @@ class Explorer(Node):
             return
         # Nav2 cannot plan from outside the map and no frontier would be reachable, which must not look
         # like a finished map. slam_toolbox adds a scan only after a move or turn, so turn to grow the map.
-        if self.robot_on_map(robot):
+        if self.done:
+            pass    # the map is saved: no turns to grow it, no judging of goals
+        elif self.robot_on_map(robot):
             self.offmap_spins = 0
         elif self.offmap_spins >= self.max_offmap_spins:
             self.get_logger().error(
@@ -222,6 +230,8 @@ class Explorer(Node):
             return
         if self.user_goal is not None:
             self.start_user_goal(robot)
+            return
+        if self.done:
             return
 
         frontiers = find_frontiers(self.grid, robot, self.min_frontier_size, self.free_threshold,
@@ -465,16 +475,54 @@ class Explorer(Node):
             self.get_logger().warn(f'The goal is in frame "{msg.header.frame_id}", set the fixed frame of '
                                    f'RViz to "{self.map_frame}"')
             return
-        if self.done:
-            self.get_logger().info('The exploration is finished, the goal from RViz is ignored')
-            return
         q = msg.pose.orientation
         yaw = None
         if q.x or q.y or q.z or q.w:
             yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-        self.user_goal = (msg.pose.position.x, msg.pose.position.y, yaw)
-        self.get_logger().info(f'Goal from RViz at ({self.user_goal[0]:.2f}, {self.user_goal[1]:.2f})')
+        self.set_user_goal((msg.pose.position.x, msg.pose.position.y, yaw), 'Goal from RViz')
+
+    def set_user_goal(self, goal, what):
+        """Make (x, y, yaw or None) the goal that goes before the frontiers; the same goal again changes nothing."""
+        if goal == self.user_goal:
+            return
+        self.user_goal = goal
+        self.get_logger().info(f'{what} at ({goal[0]:.2f}, {goal[1]:.2f})')
         self.publish_markers()
+
+    def update_home_marker(self):
+        """The Home button: a green slab with a label at the start of the map; click it with the Interact tool."""
+        button = InteractiveMarker()
+        button.header.frame_id = self.map_frame
+        button.name = 'home'
+        button.scale = 0.5
+        button.pose.position.x, button.pose.position.y, button.pose.position.z = self.home[0], self.home[1], 0.0
+        button.pose.orientation.w = 1.0
+        control = InteractiveMarkerControl()
+        control.name = 'go_home'
+        control.interaction_mode = InteractiveMarkerControl.BUTTON
+        control.always_visible = True
+        # Flat and wider than the focus pin that stands on it at the start, so the slab can be hit around the pin.
+        slab = Marker()
+        slab.type = Marker.CUBE
+        slab.scale.x = slab.scale.y = 0.5
+        slab.scale.z = 0.02
+        slab.color.r, slab.color.g, slab.color.b, slab.color.a = 0.0, 0.8, 0.3, 0.6
+        label = Marker()
+        label.type = Marker.TEXT_VIEW_FACING
+        label.text = 'HOME'
+        label.pose.position.y = -0.45
+        label.pose.position.z = 0.05
+        label.scale.z = 0.16
+        label.color.r = label.color.g = label.color.b = label.color.a = 1.0
+        control.markers.extend([slab, label])
+        button.controls.append(control)
+        self.handles.insert(button, feedback_callback=self.on_home_feedback)
+        self.handles.applyChanges()
+
+    def on_home_feedback(self, feedback):
+        """A click on the Home button sends the robot to the start of the map, like a goal from RViz."""
+        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+            self.set_user_goal(self.home, 'Home button')
 
     def on_cancel_user_goal(self, request, response):
         if self.user_goal is not None:

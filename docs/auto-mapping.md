@@ -54,10 +54,12 @@ Two ways to tell the explorer where you care about, both with the **explorer** r
 **Go to a point.** Pick the **2D Goal Pose** tool in the RViz toolbar and drag from the point in the direction the robot should face afterwards. It publishes `/user_goal`, which only the explorer reads; the tool's usual `/goal_pose` is taken by Nav2 itself, and a goal there would fight the explorer.
 - The running frontier goal is cancelled (without blacklisting it), the robot drives to the point, and the exploration goes on from where it is. The point shows as a green ball until it is reached.
 - A point that the robot cannot get to (outside the geofence, in unknown space, on an obstacle, in a part of the map that is cut off) moves to the nearest reachable cell within `user_goal_snap` (40 cm) or, if there is none, is dropped with a reason in the log.
-- A new point replaces the one under way. Before the geofence is set, or during the first turn, the point waits. After the exploration has finished it is ignored.
+- A new point replaces the one under way. Before the geofence is set, or during the first turn, the point waits. After the exploration has finished and the map is saved, the goal is still served (the explorer stays up while a geofence is set); the robot drives there and stops, nothing is explored or saved again.
 - Cancel it with `ros2 service call /explorer/cancel_user_goal std_srvs/srv/Empty`.
 
 **Explore around a point first.** The **Interact** tool shows a gray pin, the *focus*, where the robot started. Drag it where you want the exploration to start and let go (or right-click it and choose *Explore around here first*): a blue pin with a ring of `focus_radius` (1.5 m) appears. A frontier costs `focus_weight` (1.0) metres more for each metre between it and the pin, so frontiers around the pin are explored first, but nothing is excluded: it is a preference, not a boundary. A pin in space that is not known yet stays and pulls the exploration there. When its spot is on the map and no frontier is left inside the ring, the pin turns gray and the exploration is normal again. *Explore everywhere* in the same menu removes the focus at once.
+
+**Go back to the start.** The **Interact** tool also shows a green square labelled *HOME* at the start of the map (`map` point `(0, 0)`, where SLAM started). Click it and the robot drives there and turns to the heading it started with. It works like a goal from 2D Goal Pose: the running frontier goal is cancelled, the geofence is respected, a start that is outside it or not reachable is dropped with a reason in the log, and the exploration goes on from there (or, if the map is saved already, the robot just stops at the start). `home_x`, `home_y` and `home_yaw` in `explorer.yaml` move the place.
 
 ## Install
 
@@ -154,6 +156,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 | `geofence_margin` | 0.15 m | Distance from the polygon edge that goals and paths keep |
 | `geofence_close_radius` | 0.3 m | A click this close to the first vertex closes the polygon |
 | `user_goal_snap` | 0.4 m | How far a goal from RViz may move to the nearest reachable cell |
+| `home_x`, `home_y`, `home_yaw` | 0, 0, 0 | Where the Home button in RViz sends the robot (map frame, m and rad) |
 | `focus_weight` | 1.0 | Cost in metres per metre between a frontier and the focus; 0 switches the focus off |
 | `focus_radius` | 1.5 m | Ring around the focus; the focus is dropped when its spot is on the map and no frontier is left in it |
 | `geofence_file` | – | File that keeps the geofence for an explorer started again in the same SLAM session (`mapping.sh` sets it) |
