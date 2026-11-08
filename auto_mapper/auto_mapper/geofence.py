@@ -1,6 +1,8 @@
 """Geofence polygon geometry. Pure numpy, no ROS imports, so it can be unit-tested."""
 
+import json
 import math
+import os
 
 import numpy as np
 
@@ -123,3 +125,28 @@ def keepout_mask(polygon, resolution, extra, ramp=0.0):
     else:
         data[inside] = FREE
     return Grid(data, resolution, origin_x, origin_y)
+
+
+def save_polygon(path, polygon):
+    """Write the polygon as JSON, so a restarted explorer can use it again."""
+    path = os.path.expanduser(path)
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump({'polygon': [[float(x), float(y)] for x, y in polygon]}, f)
+
+
+def load_polygon(path):
+    """The polygon saved by save_polygon as [(x, y), ...]; None if the file is missing or not usable."""
+    try:
+        with open(os.path.expanduser(path), encoding='utf-8') as f:
+            polygon = [(float(x), float(y)) for x, y in json.load(f)['polygon']]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return polygon or None
+
+
+def remove_polygon(path):
+    try:
+        os.remove(os.path.expanduser(path))
+    except OSError:
+        pass

@@ -158,12 +158,21 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
+        - Class: rviz_default_plugins/InteractiveMarkers
+          Name: Geofence handles
+          Enabled: true
+          Interactive Markers Namespace: /geofence_handles
+          Show Axes: false
+          Show Descriptions: false
+          Show Visual Aids: false
   Global Options:
     Background Color: 48; 48; 48
     Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/PublishPoint

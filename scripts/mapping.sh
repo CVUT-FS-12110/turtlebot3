@@ -27,6 +27,9 @@ SESSION=mapping
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 WS_DIR=${WS_DIR:-$HOME/turtlebot3_ws}
 MODE=manual
+# The geofence of the running SLAM session, so that explore after drive (a new explorer) keeps it.
+# A new SLAM starts a new map frame, where the old polygon would be wrong, so then it is deleted.
+GEOFENCE_FILE=/tmp/mapping_geofence.json
 SIM=false
 ATTACH=1
 RESTART=0
@@ -90,6 +93,7 @@ end_session() {
 }
 
 if [[ $ACTION == stop ]]; then
+  rm -f "$GEOFENCE_FILE"
   if tmux has-session -t "$SESSION" 2>/dev/null; then end_session; echo "Session $SESSION stopped"; else echo "No session $SESSION"; fi
   exit 0
 fi
@@ -117,7 +121,7 @@ if [[ $ACTION != start ]]; then
     tmux select-pane -t "$P_TELEOP" -T hints
     send "$P_TELEOP" "clear; echo 'Nav2 + explorer drive now (window explore). Hands off the gamepad.'; echo 'Back to manual driving: mapping.sh drive   (or Ctrl+C in window explore)'"
     tmux new-window -t "$SESSION:" -n explore
-    send "$SESSION:explore" "$SRC; ros2 launch auto_mapper auto_mapper.launch.py slam:=false use_sim_time:=$SIM"
+    send "$SESSION:explore" "$SRC; ros2 launch auto_mapper auto_mapper.launch.py slam:=false use_sim_time:=$SIM geofence_file:=$GEOFENCE_FILE"
     tmux select-window -t "$SESSION:explore"
     echo "Exploring in window explore of session $SESSION; back to manual driving: mapping.sh drive"
   else
@@ -154,6 +158,7 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   fi
 fi
 
+rm -f "$GEOFENCE_FILE"   # a new session means a new SLAM and map frame
 SLAM_PARAMS='$(ros2 pkg prefix auto_mapper)/share/auto_mapper/config/slam_toolbox.yaml'
 # Our own view from this repository in both modes. The Nav2 default view has a panel waiting for the Nav2
 # servers ("controller_server service not available") in manual mode, the cartographer view subscribes to
@@ -164,7 +169,7 @@ RVIZ_ARGS=""
 [[ $SIM == true ]] && RVIZ_ARGS=" --ros-args -p use_sim_time:=true"
 
 if [[ $MODE == auto ]]; then
-  LAUNCH="ros2 launch auto_mapper auto_mapper.launch.py use_sim_time:=$SIM"
+  LAUNCH="ros2 launch auto_mapper auto_mapper.launch.py use_sim_time:=$SIM geofence_file:=$GEOFENCE_FILE"
 else
   LAUNCH="ros2 launch slam_toolbox online_async_launch.py use_sim_time:=$SIM slam_params_file:=$SLAM_PARAMS"
 fi

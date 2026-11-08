@@ -14,6 +14,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from nav2_common.launch import RewrittenYaml
 import yaml
 
@@ -75,6 +76,9 @@ def generate_launch_description():
                               description='false: use a slam_toolbox that already runs (keeps its map)'),
         DeclareLaunchArgument('explorer_params',
                               default_value=os.path.join(mapper, 'config', 'explorer.yaml')),
+        DeclareLaunchArgument('geofence_file', default_value='',
+                              description='JSON file that keeps the geofence for an explorer started again '
+                                          'in the same SLAM session (empty: not kept)'),
         DeclareLaunchArgument('slam_params',
                               default_value=os.path.join(mapper, 'config', 'slam_toolbox.yaml')),
 
@@ -91,5 +95,7 @@ def generate_launch_description():
                               'params_file': nav2_params}.items()),
 
         Node(package='auto_mapper', executable='explorer', name='explorer', output='screen',
-             parameters=[LaunchConfiguration('explorer_params'), {'use_sim_time': use_sim_time}]),
+             parameters=[LaunchConfiguration('explorer_params'), {'use_sim_time': use_sim_time,
+                                                      'geofence_file': ParameterValue(LaunchConfiguration('geofence_file'),
+                                                                                      value_type=str)}]),
     ])

@@ -1,11 +1,13 @@
+import os
+import tempfile
 import unittest
 
 import numpy as np
 
 from auto_mapper.frontiers import find_frontiers, Grid
 from auto_mapper.geofence import (
-    allowed_mask, closes_polygon, contains, distance_to_edges, keepout_mask, points_inside,
-    polygon_area, validate)
+    allowed_mask, closes_polygon, contains, distance_to_edges, keepout_mask, load_polygon, points_inside,
+    polygon_area, remove_polygon, save_polygon, validate)
 
 FREE = 25
 SQUARE = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
@@ -56,6 +58,28 @@ class PolygonTest(unittest.TestCase):
         self.assertFalse(closes_polygon(SQUARE[:2], (0.0, 0.1), 0.3))   # too few vertices
         self.assertTrue(closes_polygon(SQUARE, (0.1, 0.1), 0.3))
         self.assertFalse(closes_polygon(SQUARE, (0.5, 0.5), 0.3))
+
+
+class FileTest(unittest.TestCase):
+
+    def test_polygon_survives_a_save_and_load(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'sub', 'fence.json')
+            save_polygon(path, L_SHAPE)
+            self.assertEqual(load_polygon(path), L_SHAPE)
+            remove_polygon(path)
+            self.assertIsNone(load_polygon(path))
+            remove_polygon(path)    # a missing file is fine
+
+    def test_unusable_files_give_none(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'fence.json')
+            self.assertIsNone(load_polygon(path))
+            for text in ('', 'not json', '{}', '{"polygon": []}', '{"polygon": [[1, 2], [3]]}',
+                         '{"polygon": "x"}'):
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                self.assertIsNone(load_polygon(path), text)
 
 
 class MaskTest(unittest.TestCase):

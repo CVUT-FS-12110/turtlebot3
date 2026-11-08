@@ -31,6 +31,8 @@ What it does:
 - The explorer also sends the polygon to the Nav2 **keepout filter** (`/keepout_filter_mask`, `/costmap_filter_info`), which the launch file adds to the global and the local costmap. The outside is lethal there, so the planner does not route through it and the controller does not drive into it. The filter does not inflate, so the planner would take the centre of the robot right up to the line with its body across it. The mask therefore also raises the cost inside the edge, from 0 at `keepout_ramp` (30 cm) to nearly inscribed at the line. It stays below the inscribed cost on purpose: a lethal strip along the edge trapped the robot in a test (`No valid trajectories`, it could not drive off). The mask reaches `keepout_extra` (10 m) past the polygon; the costmap is not filtered beyond that.
 - The `explorer` keeps running after it saved the map, as long as a geofence is set. Nav2 asks for the latched mask again whenever it resets a costmap (for example in its recovery behaviours), and only this node can send it. Stop it with `Ctrl+C` like the rest. If you remove the geofence after the map was saved, the node ends. To go on, draw a new polygon instead: it replaces the old one and the explorer explores again.
 
+**Move a vertex:** every vertex of the geofence in force has a yellow handle. Pick the **Interact** tool in the RViz toolbar and drag a handle across the map. While you hold it, the changed polygon shows in orange (magenta if it would be rejected); the change is applied when you let go, with the same rules as a newly drawn polygon. A rejected one puts the handle back. Vertices can only be moved, not added or deleted: to get another shape, draw a new polygon.
+
 **Change it while the robot runs:** just draw a new polygon the same way. The first click starts it (orange); the current one (red) stays in force until the new one is closed and accepted, then it is replaced at once, with the mask for Nav2. A running goal that lies outside the new polygon is cancelled. A rejected polygon (crossing edges, robot not inside) leaves the old one in force. If the map was saved already, a new polygon makes the explorer explore again and save the map once more at the end, so a bigger fence can extend the map. To drop an unfinished drawing, call the service below; when no drawing is under way, the same call removes the geofence: the running goal is cancelled, the mask is emptied and the explorer waits for a new one.
 
 ```bash
@@ -41,6 +43,7 @@ A polygon known in advance can go into [`explorer.yaml`](../auto_mapper/config/e
 
 Limits:
 - The geofence belongs to the running SLAM. `map` starts where the robot started, so after a restart of SLAM (`--restart`) the polygon is drawn again; it is not matched to an earlier map. A small shift of the map after a loop closure moves the walls, not the polygon, which is why a margin from the edge is kept.
+- An explorer started again in the same SLAM session keeps the geofence: `mapping.sh` saves it in `/tmp/mapping_geofence.json` (launch argument `geofence_file:=`, parameter `geofence_file`), so `mapping.sh drive` followed by `mapping.sh explore` goes on with it after the turn in place, and it is shown in RViz again. A new session, `--restart` and `mapping.sh stop` delete the file, because a new SLAM has a new `map` frame. Started by hand, add `-p geofence_file:=/tmp/mapping_geofence.json` to `ros2 run auto_mapper explorer`; the file is read only if the parameter is set. If the robot is outside the saved polygon at that moment, it is rejected like any other and you draw a new one.
 - It only restrains the autonomous mode. The keyboard teleop and the gamepad drive the robot wherever you steer it.
 - The keepout filter only marks costmap cells as lethal; nothing stops the robot if it is pushed across the line. Planning from inside a lethal cell may then fail, so the explorer would blacklist its goals. Stop the exploration and move the robot back inside.
 
@@ -138,6 +141,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 | `geofence` | – | Polygon `[x1, y1, x2, y2, ...]` in the `map` frame, instead of drawing it in RViz |
 | `geofence_margin` | 0.15 m | Distance from the polygon edge that goals and paths keep |
 | `geofence_close_radius` | 0.3 m | A click this close to the first vertex closes the polygon |
+| `geofence_file` | – | File that keeps the geofence for an explorer started again in the same SLAM session (`mapping.sh` sets it) |
 | `keepout_ramp` | 0.3 m | Inside the edge, Nav2 costs rise over this distance towards the line |
 | `keepout_resolution` | 0.05 m | Cell size of the mask sent to the Nav2 keepout filter |
 | `keepout_extra` | 10 m | How far the mask reaches past the polygon |

@@ -6,6 +6,7 @@ import subprocess
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Point, PointStamped, PoseStamped
+from interactive_markers import InteractiveMarkerServer
 from nav2_msgs.action import NavigateToPose, Spin
 from nav2_msgs.msg import CostmapFilterInfo
 from nav_msgs.msg import OccupancyGrid
@@ -18,7 +19,8 @@ from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_srvs.srv import Empty
 import tf2_ros
-from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import (
+    InteractiveMarker, InteractiveMarkerControl, InteractiveMarkerFeedback, Marker, MarkerArray)
 
 from auto_mapper import geofence as fence
 from auto_mapper.frontiers import (
@@ -62,6 +64,7 @@ class Explorer(Node):
         self.keepout_extra = self.declare_parameter('keepout_extra', 10.0).value
         self.keepout_ramp = self.declare_parameter('keepout_ramp', 0.3).value
         preset = self.declare_parameter('geofence', Parameter.Type.DOUBLE_ARRAY).value
+        self.geofence_file = self.declare_parameter('geofence_file', '').value
 
         self.geofence = None        # the accepted polygon, [(x, y), ...] in the map frame
         self.drawing = []           # vertices clicked so far
@@ -74,6 +77,12 @@ class Explorer(Node):
                 self.pending_polygon = list(zip(preset[0::2], preset[1::2]))
             else:
                 self.get_logger().error('Parameter geofence needs x, y pairs, ignoring its odd length')
+        elif self.geofence_file:
+            # An explorer started again in the same SLAM session (mapping.sh drive, then explore) goes on
+            # with the geofence of its predecessor.
+            self.pending_polygon = fence.load_polygon(self.geofence_file)
+            if self.pending_polygon:
+                self.get_logger().info(f'Using the geofence saved in {self.geofence_file}')
 
         self.grid = None
         self.blacklist = []
@@ -105,6 +114,10 @@ class Explorer(Node):
         self.geofence_markers = self.create_publisher(MarkerArray, '~/geofence', 1)
         self.mask_pub = self.create_publisher(OccupancyGrid, KEEPOUT_MASK_TOPIC, qos)
         self.info_pub = self.create_publisher(CostmapFilterInfo, KEEPOUT_INFO_TOPIC, qos)
+        # One handle per vertex of the geofence in force; dragging one changes the polygon (RViz tool Interact).
+        self.handles = InteractiveMarkerServer(self, 'geofence_handles')
+        self.handle_count = 0
+        self.preview = None         # the polygon while a vertex is being dragged
         self.create_subscription(PointStamped, 'clicked_point', self.on_clicked_point, 10)
         self.create_service(Empty, '~/clear_geofence', self.on_clear_geofence)
         self.create_timer(1.0, self.publish_geofence_markers)
@@ -232,11 +245,8 @@ class Explorer(Node):
                 f'Geofence vertex {len(self.drawing)} at ({point[0]:.2f}, {point[1]:.2f}){hint}')
         self.publish_geofence_markers()
 
-    def set_geofence(self, polygon):
-        """Accept the polygon if it is a simple one with the robot inside, and hand it to Nav2 as a mask.
-
-        It also replaces a geofence that is set; a rejected polygon leaves that one in force.
-        """
+    def polygon_problem(self, polygon):
+        """None for a polygon that can be the geofence, else why not."""
         problem = fence.validate(polygon)
         if problem is None:
             robot = self.robot_xy()
@@ -244,6 +254,14 @@ class Explorer(Node):
                 problem = 'the robot position is not known yet (no TF)'
             elif not fence.contains(polygon, robot):
                 problem = f'the robot at ({robot[0]:.2f}, {robot[1]:.2f}) is not inside'
+        return problem
+
+    def set_geofence(self, polygon):
+        """Accept the polygon if it is a simple one with the robot inside, and hand it to Nav2 as a mask.
+
+        It also replaces a geofence that is set; a rejected polygon leaves that one in force.
+        """
+        problem = self.polygon_problem(polygon)
         self.drawing = []
         if problem:
             self.get_logger().warn(f'Geofence rejected, {problem}. '
@@ -254,6 +272,7 @@ class Explorer(Node):
             self.allowed_key = None
             self.publish_keepout(fence.keepout_mask(self.geofence, self.keepout_resolution,
                                                        self.keepout_extra, self.keepout_ramp))
+            self.remember_geofence()
             self.get_logger().info(
                 f'Geofence {"changed" if changed else "set"}: {len(polygon)} vertices, '
                 f'{fence.polygon_area(polygon):.1f} m2. The explorer stays inside and Nav2 treats the '
@@ -271,7 +290,66 @@ class Explorer(Node):
                 self.empty_ticks = 0
                 self.blacklist.clear()
                 self.blacklist_retries = self.blacklist_retries_max
+        self.update_handles()   # also puts a dragged handle back after a rejection
         self.publish_geofence_markers()
+        return problem is None
+
+    def update_handles(self):
+        """One draggable handle per vertex of the geofence in force; none without one."""
+        polygon = self.geofence or []
+        for i, (x, y) in enumerate(polygon):
+            handle = InteractiveMarker()
+            handle.header.frame_id = self.map_frame
+            handle.name = f'v{i}'
+            handle.scale = 0.5
+            handle.pose.position.x, handle.pose.position.y, handle.pose.position.z = x, y, 0.05
+            handle.pose.orientation.w = 1.0
+            ball = Marker()
+            ball.type = Marker.SPHERE
+            ball.scale.x = ball.scale.y = ball.scale.z = 0.2
+            ball.color.r, ball.color.g, ball.color.b, ball.color.a = 1.0, 0.85, 0.0, 1.0
+            control = InteractiveMarkerControl()
+            control.name = 'move'
+            control.interaction_mode = InteractiveMarkerControl.MOVE_PLANE
+            control.orientation.w = control.orientation.y = math.sqrt(0.5)   # the plane normal is z
+            control.always_visible = True
+            control.markers.append(ball)
+            handle.controls.append(control)
+            self.handles.insert(handle, feedback_callback=self.on_vertex_feedback)
+        for i in range(len(polygon), self.handle_count):
+            self.handles.erase(f'v{i}')
+        self.handle_count = len(polygon)
+        self.handles.applyChanges()
+
+    def on_vertex_feedback(self, feedback):
+        """Dragging shows the changed polygon; releasing the handle applies it like a newly drawn one."""
+        if self.geofence is None or not feedback.marker_name.startswith('v'):
+            return
+        try:
+            index = int(feedback.marker_name[1:])
+        except ValueError:
+            return
+        if index >= len(self.geofence):
+            return
+        polygon = list(self.geofence)
+        polygon[index] = (feedback.pose.position.x, feedback.pose.position.y)
+        if feedback.event_type == InteractiveMarkerFeedback.POSE_UPDATE:
+            self.preview = polygon
+            self.publish_geofence_markers()
+        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
+            self.preview = None
+            if polygon != self.geofence:
+                self.set_geofence(polygon)
+            else:
+                self.publish_geofence_markers()
+
+    def remember_geofence(self):
+        if not self.geofence_file:
+            return
+        try:
+            fence.save_polygon(self.geofence_file, self.geofence)
+        except OSError as error:
+            self.get_logger().warn(f'Could not save the geofence to {self.geofence_file}: {error}')
 
     def on_clear_geofence(self, request, response):
         if self.drawing:
@@ -282,6 +360,8 @@ class Explorer(Node):
         elif self.geofence is not None:
             self.geofence = None
             self.allowed = self.allowed_key = None
+            if self.geofence_file:
+                fence.remove_polygon(self.geofence_file)
             # The costmap filter keeps its last mask, so overwrite it with one that forbids nothing.
             self.publish_keepout(Grid(np.zeros_like(self.keepout.data), self.keepout.resolution,
                                       self.keepout.origin_x, self.keepout.origin_y))
@@ -289,6 +369,7 @@ class Explorer(Node):
                 self.goal_cleared = True
                 self.goal_handle.cancel_goal_async()
                 self.goal_handle = None
+            self.update_handles()
             self.get_logger().info('Geofence removed' + (', waiting for a new one' if self.require_geofence else ''))
         self.publish_geofence_markers()
         return response
@@ -335,8 +416,13 @@ class Explorer(Node):
 
     def publish_geofence_markers(self):
         """The geofence in force (red) and, while a new one is being drawn, that drawing (orange)."""
+        # A dragged vertex shows the changed polygon in orange, or in magenta when it would be rejected.
+        preview_color = (1.0, 0.55, 0.0, 0.9)
+        if self.preview and self.polygon_problem(self.preview):
+            preview_color = (1.0, 0.0, 1.0, 0.9)
         markers = (self.polygon_markers(0, self.geofence or [], True, (1.0, 0.1, 0.1, 0.9))
-                   + self.polygon_markers(2, self.drawing, False, (1.0, 0.55, 0.0, 0.9)))
+                   + self.polygon_markers(2, self.drawing, False, (1.0, 0.55, 0.0, 0.9))
+                   + self.polygon_markers(4, self.preview or [], True, preview_color))
         self.geofence_markers.publish(MarkerArray(markers=markers))
 
     def goal_is_frontier(self):
