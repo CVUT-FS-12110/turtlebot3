@@ -51,6 +51,7 @@ class Explorer(Node):
         self.settle_time = self.declare_parameter('settle_time', 3.0).value
         self.reject_backoff = self.declare_parameter('reject_backoff', 2.0).value
         self.blacklist_retries = self.declare_parameter('blacklist_retries', 1).value
+        self.blacklist_retries_max = self.blacklist_retries
         self.spin_pending = self.declare_parameter('initial_spin', True).value
         self.max_offmap_spins = self.declare_parameter('max_offmap_spins', 3).value
         period = self.declare_parameter('period', 1.0).value
@@ -212,21 +213,19 @@ class Explorer(Node):
         return self.allowed
 
     def on_clicked_point(self, msg):
-        if self.done:
-            return
         if msg.header.frame_id != self.map_frame:
             self.get_logger().warn(f'The clicked point is in frame "{msg.header.frame_id}", set the fixed '
                                    f'frame of RViz to "{self.map_frame}" to draw the geofence')
-            return
-        if self.geofence is not None:
-            self.get_logger().info('The geofence is set already; remove it first with: ros2 service call '
-                                   '/explorer/clear_geofence std_srvs/srv/Empty')
             return
         point = (msg.point.x, msg.point.y)
         if fence.closes_polygon(self.drawing, point, self.close_radius):
             polygon, self.drawing = self.drawing, []
             self.set_geofence(polygon)
         else:
+            if not self.drawing and self.geofence is not None:
+                self.get_logger().info(
+                    'Drawing a new geofence; the current one stays in force until the new one is closed. '
+                    'Cancel the drawing with: ros2 service call /explorer/clear_geofence std_srvs/srv/Empty')
             self.drawing.append(point)
             hint = '; click the first vertex to close it' if len(self.drawing) >= 3 else ''
             self.get_logger().info(
@@ -234,7 +233,10 @@ class Explorer(Node):
         self.publish_geofence_markers()
 
     def set_geofence(self, polygon):
-        """Accept the polygon if it is a simple one with the robot inside, and hand it to Nav2 as a mask."""
+        """Accept the polygon if it is a simple one with the robot inside, and hand it to Nav2 as a mask.
+
+        It also replaces a geofence that is set; a rejected polygon leaves that one in force.
+        """
         problem = fence.validate(polygon)
         if problem is None:
             robot = self.robot_xy()
@@ -244,25 +246,45 @@ class Explorer(Node):
                 problem = f'the robot at ({robot[0]:.2f}, {robot[1]:.2f}) is not inside'
         self.drawing = []
         if problem:
-            self.get_logger().warn(f'Geofence rejected, {problem}. Draw it again.')
+            self.get_logger().warn(f'Geofence rejected, {problem}. '
+                                   + ('The previous one stays in force.' if self.geofence else 'Draw it again.'))
         else:
+            changed = self.geofence is not None
             self.geofence = list(polygon)
             self.allowed_key = None
             self.publish_keepout(fence.keepout_mask(self.geofence, self.keepout_resolution,
                                                        self.keepout_extra, self.keepout_ramp))
             self.get_logger().info(
-                f'Geofence set: {len(polygon)} vertices, {fence.polygon_area(polygon):.1f} m2. '
-                'The explorer stays inside and Nav2 treats the outside as a keepout zone.')
+                f'Geofence {"changed" if changed else "set"}: {len(polygon)} vertices, '
+                f'{fence.polygon_area(polygon):.1f} m2. The explorer stays inside and Nav2 treats the '
+                'outside as a keepout zone.')
+            if self.goal_handle and self.goal_xy and not fence.contains(
+                    self.geofence, self.goal_xy, self.geofence_margin):
+                self.get_logger().info('The running goal is outside the new geofence, cancelling it')
+                self.goal_cleared = True
+                self.goal_handle.cancel_goal_async()
+                self.goal_handle = None
+            if self.done:
+                # A bigger fence can open frontiers that were out of reach; the map is saved again at the end.
+                self.get_logger().info('The map was saved already; exploring again inside the new geofence')
+                self.done = False
+                self.empty_ticks = 0
+                self.blacklist.clear()
+                self.blacklist_retries = self.blacklist_retries_max
         self.publish_geofence_markers()
 
     def on_clear_geofence(self, request, response):
-        self.drawing = []
-        if self.geofence is not None:
+        if self.drawing:
+            # Only the unfinished drawing goes, a geofence that is set stays.
+            self.drawing = []
+            self.get_logger().info('Drawing cancelled' + (', the current geofence stays in force'
+                                                          if self.geofence else ''))
+        elif self.geofence is not None:
             self.geofence = None
             self.allowed = self.allowed_key = None
             # The costmap filter keeps its last mask, so overwrite it with one that forbids nothing.
             self.publish_keepout(Grid(np.zeros_like(self.keepout.data), self.keepout.resolution,
-                                               self.keepout.origin_x, self.keepout.origin_y))
+                                      self.keepout.origin_x, self.keepout.origin_y))
             if self.goal_handle:
                 self.goal_cleared = True
                 self.goal_handle.cancel_goal_async()
@@ -293,27 +315,29 @@ class Explorer(Node):
         self.mask_pub.publish(msg)
         self.info_pub.publish(info)
 
-    def publish_geofence_markers(self):
-        """The polygon: red once set, orange while it is being drawn."""
-        polygon = self.geofence or self.drawing
+    def polygon_markers(self, first_id, polygon, closed, rgba):
+        """An outline (LINE_STRIP, closed or not) and its vertices (SPHERE_LIST); DELETE for an empty polygon."""
         line = Marker()
         vertices = Marker()
-        for marker_id, marker, kind, size in ((0, line, Marker.LINE_STRIP, 0.06),
-                                              (1, vertices, Marker.SPHERE_LIST, 0.15)):
+        for marker_id, marker, kind, size in ((first_id, line, Marker.LINE_STRIP, 0.06),
+                                              (first_id + 1, vertices, Marker.SPHERE_LIST, 0.15)):
             marker.header.frame_id = self.map_frame
             marker.ns, marker.id, marker.type = 'geofence', marker_id, kind
             marker.pose.orientation.w = 1.0
             marker.scale.x = marker.scale.y = marker.scale.z = size
-            if self.geofence:
-                marker.color.r, marker.color.g, marker.color.b, marker.color.a = 1.0, 0.1, 0.1, 0.9
-            else:
-                marker.color.r, marker.color.g, marker.color.b, marker.color.a = 1.0, 0.55, 0.0, 0.9
+            marker.color.r, marker.color.g, marker.color.b, marker.color.a = rgba
             if not polygon:
                 marker.action = Marker.DELETE
             marker.points = [Point(x=x, y=y) for x, y in polygon]
-        if self.geofence:
+        if closed and polygon:
             line.points.append(Point(x=polygon[0][0], y=polygon[0][1]))
-        self.geofence_markers.publish(MarkerArray(markers=[line, vertices]))
+        return [line, vertices]
+
+    def publish_geofence_markers(self):
+        """The geofence in force (red) and, while a new one is being drawn, that drawing (orange)."""
+        markers = (self.polygon_markers(0, self.geofence or [], True, (1.0, 0.1, 0.1, 0.9))
+                   + self.polygon_markers(2, self.drawing, False, (1.0, 0.55, 0.0, 0.9)))
+        self.geofence_markers.publish(MarkerArray(markers=markers))
 
     def goal_is_frontier(self):
         row, col = self.grid.world_to_cell(*self.goal_xy)
