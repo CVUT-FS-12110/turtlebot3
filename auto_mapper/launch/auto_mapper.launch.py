@@ -5,6 +5,7 @@ runs, for example after mapping part of a room by hand (mapping.sh explore).
 """
 
 import os
+import tempfile
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -14,6 +15,28 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from nav2_common.launch import RewrittenYaml
+import yaml
+
+
+def with_keepout_filter(source_file):
+    """Copy of the Nav2 parameters with the keepout filter in both costmaps; returns the path.
+
+    The explorer publishes the mask and /costmap_filter_info once a geofence is set. Until then the filter
+    waits for them and changes nothing. RewrittenYaml cannot do this, it only sets single string values.
+    """
+    with open(source_file, encoding='utf-8') as f:
+        params = yaml.safe_load(f)
+    for name in ('global_costmap', 'local_costmap'):
+        costmap = params[name][name]['ros__parameters']
+        costmap['filters'] = ['keepout_filter']
+        costmap['keepout_filter'] = {
+            'plugin': 'nav2_costmap_2d::KeepoutFilter',
+            'enabled': True,
+            'filter_info_topic': '/costmap_filter_info',
+        }
+    with tempfile.NamedTemporaryFile('w', suffix='_nav2_keepout.yaml', delete=False, encoding='utf-8') as f:
+        yaml.safe_dump(params, f)
+    return f.name
 
 
 def generate_launch_description():
@@ -31,8 +54,9 @@ def generate_launch_description():
     #   0.2 s is barely longer than the scan period (0.14 s at 7 Hz), so Wi-Fi jitter would stop it all the time.
     # - The default top speed of 0.3 m/s is above the 0.22 m/s the Burger can do.
     # - The costmaps have the 2.5 cm cells of the SLAM map instead of 5 cm, so they look as fine in RViz.
+    # - The costmaps get the keepout filter that enforces the geofence.
     nav2_params = RewrittenYaml(
-        source_file=os.path.join(tb3_nav, 'param', f'{model}.yaml'),
+        source_file=with_keepout_filter(os.path.join(tb3_nav, 'param', f'{model}.yaml')),
         param_rewrites={
             'collision_monitor.ros__parameters.scan.source_timeout': '1.0',
             'global_costmap.global_costmap.ros__parameters.resolution': '0.025',

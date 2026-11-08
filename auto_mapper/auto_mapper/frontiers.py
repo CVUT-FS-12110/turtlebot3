@@ -123,19 +123,23 @@ def cluster_cells(mask):
     return clusters
 
 
-def reachable_distances(data, start, free_threshold, clearance_cells=0):
+def reachable_distances(data, start, free_threshold, clearance_cells=0, allowed=None):
     """BFS over free cells from start (4-neighbourhood); returns path length in cells, inf if unreachable.
 
-    Cells closer than clearance_cells to an obstacle are not passable, except around the start, so a
-    robot standing next to a wall can still leave.
+    Cells closer than clearance_cells to an obstacle, and cells outside the allowed mask (the geofence),
+    are not passable, except around the start, so a robot standing next to a wall or the fence can still
+    leave.
     """
     dist = np.full(data.shape, np.inf)
     if not (0 <= start[0] < data.shape[0] and 0 <= start[1] < data.shape[1]):
         return dist
     free = (data >= 0) & (data < free_threshold)
     passable = free
+    if allowed is not None:
+        passable = passable & allowed
     if clearance_cells > 0:
-        passable = free & ~near_occupied(data, free_threshold, clearance_cells)
+        passable = passable & ~near_occupied(data, free_threshold, clearance_cells)
+    if passable is not free:
         for dr, dc in _disk(clearance_cells + 1):
             r, c = start[0] + dr, start[1] + dc
             if 0 <= r < data.shape[0] and 0 <= c < data.shape[1]:
@@ -155,18 +159,19 @@ def reachable_distances(data, start, free_threshold, clearance_cells=0):
 
 
 def find_frontiers(grid, robot_xy, min_size, free_threshold, blacklist=(), blacklist_radius=0.5,
-                   clearance=0.0, min_distance=0.0):
+                   clearance=0.0, min_distance=0.0, allowed=None):
     """Reachable frontier clusters of at least min_size cells.
 
     The target of a cluster is the usable cell closest to the centroid of the usable cells. A cell is
     usable if the robot fits there (clearance, metres), it is not within min_distance metres of the
     robot (Nav2 would report such a goal as reached without moving) and not near a blacklisted point.
-    A cluster without a usable cell is left out.
+    A cluster without a usable cell is left out. With an allowed mask (same shape as the grid) the robot
+    does not leave it, neither for a goal nor on the way to one.
     """
     data = grid.data
     start = grid.world_to_cell(*robot_xy)
     clearance_cells = int(math.ceil(clearance / grid.resolution))
-    dist = reachable_distances(data, start, free_threshold, clearance_cells)
+    dist = reachable_distances(data, start, free_threshold, clearance_cells, allowed)
     frontiers = []
     for cells in cluster_cells(frontier_mask(data, free_threshold)):
         if len(cells) < min_size:

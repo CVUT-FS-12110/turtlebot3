@@ -155,14 +155,11 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 SLAM_PARAMS='$(ros2 pkg prefix auto_mapper)/share/auto_mapper/config/slam_toolbox.yaml'
-# Auto mode runs Nav2, so its own view fits. In manual mode that view has a panel waiting for the Nav2
-# servers ("controller_server service not available"), and the cartographer view subscribes to /scan
-# as reliable, which the LiDAR (best effort) does not serve. Use our own view from this repository.
-if [[ $MODE == auto ]]; then
-  RVIZ_CFG='$(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/rviz/nav2_default_view.rviz'
-else
-  RVIZ_CFG="$REPO_DIR/auto_mapper/config/mapping.rviz"
-fi
+# Our own view from this repository in both modes. The Nav2 default view has a panel waiting for the Nav2
+# servers ("controller_server service not available") in manual mode, the cartographer view subscribes to
+# /scan as reliable, which the LiDAR (best effort) does not serve, and neither has the geofence display
+# and the Publish Point tool that draws the geofence. This view also shows the Nav2 plans and costmaps.
+RVIZ_CFG="$REPO_DIR/auto_mapper/config/mapping.rviz"
 RVIZ_ARGS=""
 [[ $SIM == true ]] && RVIZ_ARGS=" --ros-args -p use_sim_time:=true"
 

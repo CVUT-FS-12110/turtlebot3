@@ -149,6 +149,15 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
+        - Class: rviz_default_plugins/MarkerArray
+          Name: Geofence
+          Enabled: true
+          Topic:
+            Value: /explorer/geofence
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
   Global Options:
     Background Color: 48; 48; 48
     Fixed Frame: map
@@ -157,6 +166,10 @@ Visualization Manager:
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic:
+        Value: /clicked_point
   Transformation:
     Current:
       Class: rviz_default_plugins/TF

@@ -5,20 +5,28 @@ import os
 import subprocess
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, PointStamped, PoseStamped
 from nav2_msgs.action import NavigateToPose, Spin
+from nav2_msgs.msg import CostmapFilterInfo
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from std_srvs.srv import Empty
 import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
 
+from auto_mapper import geofence as fence
 from auto_mapper.frontiers import (
     choose_frontier, downsample, find_frontiers, frontier_near, Grid)
+
+KEEPOUT_MASK_TOPIC = '/keepout_filter_mask'
+KEEPOUT_INFO_TOPIC = '/costmap_filter_info'
+KEEPOUT_FILTER_TYPE = 0     # CostmapFilterInfo.type of the keepout filter
 
 
 class Explorer(Node):
@@ -35,6 +43,7 @@ class Explorer(Node):
         self.finish_after = self.declare_parameter('finish_after_empty_ticks', 5).value
         self.save_map = self.declare_parameter('save_map', True).value
         self.map_path = self.declare_parameter('map_path', '~/maps/auto_map').value
+        self.map_save_timeout = self.declare_parameter('map_save_timeout', 10.0).value
         self.analysis_resolution = self.declare_parameter('analysis_resolution', 0.05).value
         self.clearance = self.declare_parameter('clearance', 0.15).value
         self.min_goal_distance = self.declare_parameter('min_goal_distance', 0.35).value
@@ -45,6 +54,25 @@ class Explorer(Node):
         self.spin_pending = self.declare_parameter('initial_spin', True).value
         self.max_offmap_spins = self.declare_parameter('max_offmap_spins', 3).value
         period = self.declare_parameter('period', 1.0).value
+        self.require_geofence = self.declare_parameter('require_geofence', True).value
+        self.geofence_margin = self.declare_parameter('geofence_margin', 0.15).value
+        self.close_radius = self.declare_parameter('geofence_close_radius', 0.3).value
+        self.keepout_resolution = self.declare_parameter('keepout_resolution', 0.05).value
+        self.keepout_extra = self.declare_parameter('keepout_extra', 10.0).value
+        self.keepout_ramp = self.declare_parameter('keepout_ramp', 0.3).value
+        preset = self.declare_parameter('geofence', Parameter.Type.DOUBLE_ARRAY).value
+
+        self.geofence = None        # the accepted polygon, [(x, y), ...] in the map frame
+        self.drawing = []           # vertices clicked so far
+        self.pending_polygon = None  # from the parameter, accepted once the robot position is known
+        self.keepout = None         # Grid of the mask last sent to Nav2
+        self.allowed = None         # cells inside the geofence, for the grid with allowed_key
+        self.allowed_key = None
+        if preset:
+            if len(preset) % 2 == 0:
+                self.pending_polygon = list(zip(preset[0::2], preset[1::2]))
+            else:
+                self.get_logger().error('Parameter geofence needs x, y pairs, ignoring its odd length')
 
         self.grid = None
         self.blacklist = []
@@ -71,6 +99,14 @@ class Explorer(Node):
         # For RViz: frontier targets (yellow, size by length) and the current goal (magenta).
         self.markers = self.create_publisher(MarkerArray, '~/frontiers', 1)
         self.frontiers = []
+        # The geofence: drawn in RViz with "Publish Point", shown as markers, and sent to the Nav2 keepout
+        # filter as a mask, so Nav2 does not plan through the outside either. Latched like /map.
+        self.geofence_markers = self.create_publisher(MarkerArray, '~/geofence', 1)
+        self.mask_pub = self.create_publisher(OccupancyGrid, KEEPOUT_MASK_TOPIC, qos)
+        self.info_pub = self.create_publisher(CostmapFilterInfo, KEEPOUT_INFO_TOPIC, qos)
+        self.create_subscription(PointStamped, 'clicked_point', self.on_clicked_point, 10)
+        self.create_service(Empty, '~/clear_geofence', self.on_clear_geofence)
+        self.create_timer(1.0, self.publish_geofence_markers)
         self.create_timer(period, self.tick)
         self.get_logger().info('Waiting for /map, TF and the navigate_to_pose action server...')
 
@@ -102,6 +138,9 @@ class Explorer(Node):
         robot = self.robot_xy()
         if robot is None:
             return
+        if self.pending_polygon is not None:
+            self.set_geofence(self.pending_polygon)
+            self.pending_polygon = None
         if self.spinning:
             return
         if self.busy:
@@ -136,10 +175,15 @@ class Explorer(Node):
         if self.check_goal:
             self.check_goal = False
             self.blacklist_goal_if_unexplored()
+        if self.require_geofence and self.geofence is None:
+            self.get_logger().info(
+                'Waiting for the geofence: click its vertices in RViz with "Publish Point" and close it '
+                'by clicking the first vertex again', throttle_duration_sec=10.0)
+            return
 
         frontiers = find_frontiers(self.grid, robot, self.min_frontier_size, self.free_threshold,
                                    self.blacklist, self.blacklist_radius,
-                                   self.clearance, self.min_goal_distance)
+                                   self.clearance, self.min_goal_distance, self.allowed_mask())
         target = choose_frontier(frontiers, self.size_weight, self.grid.resolution)
         self.frontiers = frontiers
         if target is None:
@@ -156,6 +200,120 @@ class Explorer(Node):
             return
         self.empty_ticks = 0
         self.send_goal(target, robot)
+
+    def allowed_mask(self):
+        """Cells of the current grid inside the geofence (None without one); recomputed when the map grows."""
+        if self.geofence is None:
+            return None
+        key = (self.grid.data.shape, self.grid.origin_x, self.grid.origin_y, self.grid.resolution)
+        if key != self.allowed_key:
+            self.allowed = fence.allowed_mask(self.grid, self.geofence, self.geofence_margin)
+            self.allowed_key = key
+        return self.allowed
+
+    def on_clicked_point(self, msg):
+        if self.done:
+            return
+        if msg.header.frame_id != self.map_frame:
+            self.get_logger().warn(f'The clicked point is in frame "{msg.header.frame_id}", set the fixed '
+                                   f'frame of RViz to "{self.map_frame}" to draw the geofence')
+            return
+        if self.geofence is not None:
+            self.get_logger().info('The geofence is set already; remove it first with: ros2 service call '
+                                   '/explorer/clear_geofence std_srvs/srv/Empty')
+            return
+        point = (msg.point.x, msg.point.y)
+        if fence.closes_polygon(self.drawing, point, self.close_radius):
+            polygon, self.drawing = self.drawing, []
+            self.set_geofence(polygon)
+        else:
+            self.drawing.append(point)
+            hint = '; click the first vertex to close it' if len(self.drawing) >= 3 else ''
+            self.get_logger().info(
+                f'Geofence vertex {len(self.drawing)} at ({point[0]:.2f}, {point[1]:.2f}){hint}')
+        self.publish_geofence_markers()
+
+    def set_geofence(self, polygon):
+        """Accept the polygon if it is a simple one with the robot inside, and hand it to Nav2 as a mask."""
+        problem = fence.validate(polygon)
+        if problem is None:
+            robot = self.robot_xy()
+            if robot is None:
+                problem = 'the robot position is not known yet (no TF)'
+            elif not fence.contains(polygon, robot):
+                problem = f'the robot at ({robot[0]:.2f}, {robot[1]:.2f}) is not inside'
+        self.drawing = []
+        if problem:
+            self.get_logger().warn(f'Geofence rejected, {problem}. Draw it again.')
+        else:
+            self.geofence = list(polygon)
+            self.allowed_key = None
+            self.publish_keepout(fence.keepout_mask(self.geofence, self.keepout_resolution,
+                                                       self.keepout_extra, self.keepout_ramp))
+            self.get_logger().info(
+                f'Geofence set: {len(polygon)} vertices, {fence.polygon_area(polygon):.1f} m2. '
+                'The explorer stays inside and Nav2 treats the outside as a keepout zone.')
+        self.publish_geofence_markers()
+
+    def on_clear_geofence(self, request, response):
+        self.drawing = []
+        if self.geofence is not None:
+            self.geofence = None
+            self.allowed = self.allowed_key = None
+            # The costmap filter keeps its last mask, so overwrite it with one that forbids nothing.
+            self.publish_keepout(Grid(np.zeros_like(self.keepout.data), self.keepout.resolution,
+                                               self.keepout.origin_x, self.keepout.origin_y))
+            if self.goal_handle:
+                self.goal_cleared = True
+                self.goal_handle.cancel_goal_async()
+                self.goal_handle = None
+            self.get_logger().info('Geofence removed' + (', waiting for a new one' if self.require_geofence else ''))
+        self.publish_geofence_markers()
+        return response
+
+    def publish_keepout(self, mask):
+        """Send the keepout mask and its CostmapFilterInfo to the filter in the Nav2 costmaps."""
+        self.keepout = mask
+        stamp = self.get_clock().now().to_msg()
+        msg = OccupancyGrid()
+        msg.header.frame_id = self.map_frame
+        msg.header.stamp = stamp
+        msg.info.resolution = float(mask.resolution)
+        msg.info.height, msg.info.width = mask.data.shape
+        msg.info.origin.position.x = float(mask.origin_x)
+        msg.info.origin.position.y = float(mask.origin_y)
+        msg.info.origin.orientation.w = 1.0
+        msg.data = mask.data.ravel().tolist()
+        info = CostmapFilterInfo()
+        info.header = msg.header
+        info.type = KEEPOUT_FILTER_TYPE
+        info.filter_mask_topic = KEEPOUT_MASK_TOPIC
+        info.base = 0.0
+        info.multiplier = 1.0
+        self.mask_pub.publish(msg)
+        self.info_pub.publish(info)
+
+    def publish_geofence_markers(self):
+        """The polygon: red once set, orange while it is being drawn."""
+        polygon = self.geofence or self.drawing
+        line = Marker()
+        vertices = Marker()
+        for marker_id, marker, kind, size in ((0, line, Marker.LINE_STRIP, 0.06),
+                                              (1, vertices, Marker.SPHERE_LIST, 0.15)):
+            marker.header.frame_id = self.map_frame
+            marker.ns, marker.id, marker.type = 'geofence', marker_id, kind
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = marker.scale.y = marker.scale.z = size
+            if self.geofence:
+                marker.color.r, marker.color.g, marker.color.b, marker.color.a = 1.0, 0.1, 0.1, 0.9
+            else:
+                marker.color.r, marker.color.g, marker.color.b, marker.color.a = 1.0, 0.55, 0.0, 0.9
+            if not polygon:
+                marker.action = Marker.DELETE
+            marker.points = [Point(x=x, y=y) for x, y in polygon]
+        if self.geofence:
+            line.points.append(Point(x=polygon[0][0], y=polygon[0][1]))
+        self.geofence_markers.publish(MarkerArray(markers=[line, vertices]))
 
     def goal_is_frontier(self):
         row, col = self.grid.world_to_cell(*self.goal_xy)
@@ -266,8 +424,12 @@ class Explorer(Node):
             path = os.path.expanduser(self.map_path)
             os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
             try:
+                # map_saver_cli waits only 2 s for a map by default, which is shorter than the interval
+                # of the slam_toolbox updates; it failed with "Failed to spin map subscription" in 2 of 5
+                # simulation runs.
                 returncode = subprocess.run(
-                    ['ros2', 'run', 'nav2_map_server', 'map_saver_cli', '-f', path],
+                    ['ros2', 'run', 'nav2_map_server', 'map_saver_cli', '-f', path, '--ros-args',
+                     '-p', f'save_map_timeout:={self.map_save_timeout}'],
                     check=False, timeout=60).returncode
             except subprocess.TimeoutExpired:
                 returncode = -1
@@ -282,7 +444,9 @@ def main():
     rclpy.init()
     node = Explorer()
     try:
-        while rclpy.ok() and not node.done:
+        # With a geofence the node stays up after the map is saved: Nav2 asks for the latched keepout mask
+        # again whenever it resets a costmap, and only this node can send it.
+        while rclpy.ok() and not (node.done and node.geofence is None):
             rclpy.spin_once(node, timeout_sec=0.2)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass

@@ -19,4 +19,13 @@ explorer:
     finish_after_empty_ticks: 5 # consecutive ticks without a frontier before the map is saved
     save_map: true
     map_path: ~/maps/auto_map
+    map_save_timeout: 10.0      # s map_saver_cli waits for a map; its default 2 s often fails
     period: 1.0
+    # Geofence: the robot stays inside this polygon. Without a value it is drawn in RViz (Publish Point).
+    require_geofence: true      # wait for a geofence before the first goal (the initial turn comes first)
+    # geofence: [0.0, 0.0, 3.0, 0.0, 3.0, 2.5, 0.0, 2.5]  # x, y of the vertices in the map frame [m]
+    geofence_margin: 0.15       # m from the polygon edge that goals and paths keep
+    geofence_close_radius: 0.3  # m; a click this close to the first vertex closes the polygon
+    keepout_resolution: 0.05    # m per cell of the mask sent to the Nav2 keepout filter
+    keepout_ramp: 0.3           # m inside the edge over which Nav2 costs rise towards the line
+    keepout_extra: 10.0         # m the mask reaches past the polygon; the costmap is not filtered beyond it

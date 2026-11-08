@@ -16,6 +16,28 @@ Nav2 rejects goals until all its servers are active; that is not held against th
 
 The launch file starts Nav2 with the ROBOTIS parameters for the Burger, with three changes. `collision_monitor` only stops the robot after 1 s without a scan instead of 0.2 s; with 0.2 s the scan period plus Wi-Fi jitter stopped the robot hundreds of times in the simulation. The top speed is 0.18 m/s, set with `max_speed:=` (the default 0.3 m/s is above the 0.22 m/s the Burger can do). The costmaps use the 2.5 cm cells of the SLAM map instead of 5 cm, so RViz shows them as fine as the map; this makes Nav2 handle four times as many cells.
 
+## Geofence
+
+The robot can be kept inside a polygon. By default the explorer **waits for one**: after its first turn it does not send a goal until the geofence is set (`require_geofence: false` explores without). It is drawn on the **PC**, in RViz, in the current map, so it does not matter where the robot started. A rough outline is enough: draw it a little inside the walls, the explorer and Nav2 keep another 15 cm from the edge.
+
+1. Pick the **Publish Point** tool in the RViz toolbar (the fixed frame must stay `map`).
+2. Click the vertices one after another. They show as orange spheres and a line. You can click outside the known map.
+3. Close the polygon by clicking within 30 cm of the first vertex (at least 3 vertices). It turns red and the explorer starts.
+
+The `explorer` log shows each vertex and `Geofence set: ...`. The polygon is rejected, and drawing starts again, if its edges cross, it is almost empty or **the robot is not inside it**.
+
+What it does:
+- The explorer treats the outside as a wall: a frontier outside is no goal, and neither is one that can only be reached through the outside. When nothing is left inside, it saves the map. The map then has unexplored space beyond the fence.
+- The explorer also sends the polygon to the Nav2 **keepout filter** (`/keepout_filter_mask`, `/costmap_filter_info`), which the launch file adds to the global and the local costmap. The outside is lethal there, so the planner does not route through it and the controller does not drive into it. The filter does not inflate, so the planner would take the centre of the robot right up to the line with its body across it. The mask therefore also raises the cost inside the edge, from 0 at `keepout_ramp` (30 cm) to nearly inscribed at the line. It stays below the inscribed cost on purpose: a lethal strip along the edge trapped the robot in a test (`No valid trajectories`, it could not drive off). The mask reaches `keepout_extra` (10 m) past the polygon; the costmap is not filtered beyond that.
+- The `explorer` keeps running after it saved the map, as long as a geofence is set. Nav2 asks for the latched mask again whenever it resets a costmap (for example in its recovery behaviours), and only this node can send it. Stop it with `Ctrl+C` like the rest.
+
+Change it: `ros2 service call /explorer/clear_geofence std_srvs/srv/Empty` removes it (the running goal is cancelled, the mask is emptied) and the explorer waits for a new one. A polygon known in advance can go into [`explorer.yaml`](../auto_mapper/config/explorer.yaml) as `geofence: [x1, y1, x2, y2, ...]` in the `map` frame; the point `(0, 0)` is where SLAM started, with the x axis along the robot's heading then.
+
+Limits:
+- The geofence belongs to the running SLAM. `map` starts where the robot started, so after a restart of SLAM (`--restart`) the polygon is drawn again; it is not matched to an earlier map. A small shift of the map after a loop closure moves the walls, not the polygon, which is why a margin from the edge is kept.
+- It only restrains the autonomous mode. The keyboard teleop and the gamepad drive the robot wherever you steer it.
+- The keepout filter only marks costmap cells as lethal; nothing stops the robot if it is pushed across the line. Planning from inside a lethal cell may then fail, so the explorer would blacklist its goals. Stop the exploration and move the robot back inside.
+
 ## Install
 
 `scripts/install.sh` (PC role) installs `slam_toolbox`, links the package into `~/turtlebot3_ws/src` and builds it. On an existing setup:
@@ -51,7 +73,7 @@ A running manual session (with or without `--gamepad`) can hand the robot to Nav
 
 Switching needs a session started by this version of `mapping.sh`. `mapping.sh auto` does not need it: it runs everything from the start. Switching `manual` ↔ `auto` with `--restart` starts a new SLAM and loses the map.
 
-RViz opens with [`auto_mapper/config/mapping.rviz`](../auto_mapper/config/mapping.rviz) in manual mode (map, `/scan`, robot model, TF; the LiDAR is subscribed as best effort, which is how it publishes) and with the Nav2 view in `auto` mode. The Nav2 view is not used by hand, because its panel keeps printing `controller_server service not available` while Nav2 does not run.
+RViz opens with [`auto_mapper/config/mapping.rviz`](../auto_mapper/config/mapping.rviz) in both modes (map, `/scan`, robot model, TF; the LiDAR is subscribed as best effort, which is how it publishes; the group **Nav2 and explorer** with plans, costmaps, frontiers and the geofence; the **Publish Point** tool for drawing the geofence). The Nav2 default view is not used any more, because its panel keeps printing `controller_server service not available` while Nav2 does not run, and it has neither the geofence nor the Publish Point tool.
 
 The status bar of the session shows the robot's battery voltage ([battery-status.md](battery-status.md#pc-wsl2)); yellow below 11.0 V, red below 10.5 V (stop driving).
 
@@ -105,12 +127,20 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 | `goal_timeout` | 90 s | Time after which a goal is cancelled and blacklisted |
 | `settle_time` | 3 s | Wait after a goal before judging it (the map updates every 2 s) |
 | `finish_after_empty_ticks` | 5 | Ticks without a frontier before the map is saved |
+| `map_save_timeout` | 10 s | How long `map_saver_cli` waits for the map (its own default of 2 s failed in 2 of 5 simulation runs) |
+| `require_geofence` | true | Wait for a [geofence](#geofence) before the first goal |
+| `geofence` | – | Polygon `[x1, y1, x2, y2, ...]` in the `map` frame, instead of drawing it in RViz |
+| `geofence_margin` | 0.15 m | Distance from the polygon edge that goals and paths keep |
+| `geofence_close_radius` | 0.3 m | A click this close to the first vertex closes the polygon |
+| `keepout_ramp` | 0.3 m | Inside the edge, Nav2 costs rise over this distance towards the line |
+| `keepout_resolution` | 0.05 m | Cell size of the mask sent to the Nav2 keepout filter |
+| `keepout_extra` | 10 m | How far the mask reaches past the polygon |
 
 Launch arguments of `auto_mapper.launch.py`: `use_sim_time`, `max_speed` (0.18 m/s), `slam` (`false` uses a SLAM that already runs), `explorer_params`, `slam_params`.
 
 ## Tests
 
-The frontier logic has no ROS dependency, so its unit tests run anywhere with numpy:
+The frontier and geofence logic have no ROS dependency, so their unit tests run anywhere with numpy:
 
 ```bash
 cd auto_mapper && python3 -m unittest discover -s test
@@ -120,6 +150,8 @@ cd auto_mapper && python3 -m unittest discover -s test
 
 - **Gazebo, `turtlebot3_world`:** verified on the PC (WSL2, headless Gazebo, Nav2 1.3.13). The robot explores the whole arena by itself, finishes and saves the map in 5 to 7 minutes. No stop from `collision_monitor`.
 - **Gazebo, `turtlebot3_house`:** not usable in WSL2. The world renders so slowly that the LiDAR runs at about 1 Hz, and SLAM stopped adding scans after the first one. The explorer then turned in place; this run is why it now gives up after `max_offmap_spins`. Try it on a PC with a GPU, or skip it.
+- **Geofence:** the polygon geometry and the frontier filtering have unit tests. In Gazebo (`turtlebot3_world`, headless, WSL2) a 2.5 x 3 m fence drawn by clicks was tried in five runs. Every time the robot waited after its turn until the fence was set, then explored only the inside in 2 to 4 minutes, and the global costmap was lethal in every cell outside. A Nav2 goal outside was aborted by the planner while the fence was set and succeeded after `clear_geofence`. The mask changed twice on the way: with a plain outside/inside mask the robot crossed the line by 6 mm and stood with its body across it; with a lethal strip inside the edge it stopped inside the strip and could not leave. With the cost ramp (last run) the nearest it came to the line was 19 cm, with no stuck controller. Not run: a real robot, and other fence shapes and rooms. A goal right next to a pillar did not finish with the fence on or off, so the fence is not the cause.
+- **Saving the map:** `map_saver_cli` failed with `Failed to spin map subscription` after its default 2 s in 2 of 5 of these runs, so the explorer now passes `map_save_timeout` (10 s). The run after that saved; one run is no proof that it is gone.
 - **Real robot:** not run yet, see [First test on the robot](#first-test-on-the-robot).
 - The launch file reuses the Nav2 parameters from `turtlebot3_navigation2` (`$TURTLEBOT3_MODEL.yaml`, with the changes above). It starts only the Nav2 navigation servers, without AMCL and `map_server`.
 - SLAM ignores readings beyond the LiDAR's range, so in a room larger than that no free space is seen and no frontier appears. This does not matter for the RPLiDAR (12 m), but it did for the simulated LDS-01 (3.5 m) in the large house rooms.
