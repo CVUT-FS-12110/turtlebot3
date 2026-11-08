@@ -57,7 +57,15 @@ The status bar of the session shows the robot's battery voltage ([battery-status
 
 With `--gamepad` the pane shows only hints: the keyboard teleop keeps publishing zero speed while idle and would fight the gamepad, which makes the robot jerk ([gamepad.md](gamepad.md#problems)). Start the robot with `bringup.launch.py gamepad:=true`.
 
-Teleop keys work only in the teleop pane: `w`/`x` faster forward/backward, `a`/`d` turn, `s` or space stops. Mouse works in the panes. Detach with `Ctrl+b` then `d`, reattach with `tmux attach -t mapping`, end with `mapping.sh stop`. From Windows one click opens it in a new window: `wt wsl -e ~/turtlebot3-setup/scripts/mapping.sh`.
+Teleop keys work only in the teleop pane: `w`/`x` faster forward/backward, `a`/`d` turn, `s` or space stops. Mouse works in the panes. Detach with `Ctrl+b` then `d`, reattach with `tmux attach -t mapping`, end with `mapping.sh stop`.
+
+`mapping.sh stop` and `--restart` first stop everything with `Ctrl+C` in each pane, then send the robot zero speed (`/cmd_vel`), then kill the session. Neither `turtlebot3_node` nor the OpenCR firmware stops the wheels when commands stop coming. Before this was fixed, the robot kept driving after a restart, still turning at 1 rad/s in the simulation. Never end the session with `tmux kill-session` or by closing the terminal; if you did, stop the robot by hand:
+
+```bash
+ros2 topic pub --times 5 -r 10 /cmd_vel geometry_msgs/msg/TwistStamped "{}"
+```
+
+Both also work from the session's own `shell` window: the script then finishes in the background (log in `/tmp/mapping_sh_restart.log`) and you attach to the new session with `tmux attach -t mapping`. From Windows one click opens it in a new window: `wt wsl -e ~/turtlebot3-setup/scripts/mapping.sh`.
 
 `slam_toolbox` starts with `use_sim_time:=true` unless told otherwise, so on the real robot the script always passes `use_sim_time:=false` explicitly. When running the SLAM command by hand, do the same, or it waits for a Gazebo clock and builds no map.
 
@@ -134,7 +142,7 @@ cd ~/turtlebot3_ws && source /opt/ros/jazzy/setup.bash && colcon build --symlink
 ~/turtlebot3-setup/scripts/mapping.sh auto
 ```
 
-Start in a small closed room with nothing the LiDAR cannot see (glass, low edges, stairs). Stay next to the robot. **Stop:** `Ctrl+C` in the `auto_mapper` pane, or switch the robot off. What to watch in the `auto_mapper` pane:
+Start in a small closed room with nothing the LiDAR cannot see (glass, low edges, stairs). Stay next to the robot. **Stop:** `mapping.sh stop` (or `drive` after `explore`), `Ctrl+C` in the `auto_mapper` pane, or switch the robot off. What to watch in the `auto_mapper` pane:
 
 - `Turning around to scan the surroundings`, then `Going to frontier ...`: it works.
 - `Nav2 is not accepting goals yet` more than a few times: Nav2 did not start, look for `[ERROR]` above.

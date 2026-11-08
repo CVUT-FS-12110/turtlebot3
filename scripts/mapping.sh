@@ -15,7 +15,7 @@
 #   explore     in a running manual session: stop the keyboard teleop and let Nav2 + explorer
 #               finish the map (window "explore"); SLAM keeps running, so the map is kept
 #   drive       stop Nav2 + explorer again and give the robot back to the keyboard (or gamepad)
-#   stop        kill the session
+#   stop        stop everything in the session (the robot is sent zero speed) and kill it
 #
 # Panes:  [launch]  [RViz]  [teleop or hints]  [/scan rate]
 # The status bar shows the robot's battery voltage (window "battery" runs robot/battery_status.py).
@@ -43,19 +43,56 @@ for arg in "$@"; do
     --gamepad) GAMEPAD=1 ;;
     --restart) RESTART=1 ;;
     --no-attach) ATTACH=0 ;;
-    stop) tmux kill-session -t "$SESSION" 2>/dev/null && echo "Session $SESSION stopped" || echo "No session $SESSION"; exit 0 ;;
+    stop) ACTION=stop ;;
     -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $arg (try --help)" ;;
   esac
 done
 
 command -v tmux >/dev/null || die "tmux is not installed (sudo apt install tmux)"
+
+# stop and --restart kill the session. Run from one of its own windows (the shell window), that would kill
+# this script half way, so it starts itself again outside tmux and finishes in the background.
+if [[ ( $ACTION == stop || $RESTART -eq 1 ) && -n ${TMUX:-} ]]     && [[ $(tmux display-message -p '#S' 2>/dev/null) == "$SESSION" ]]; then
+  log=/tmp/mapping_sh_restart.log
+  env -u TMUX -u TMUX_PANE setsid bash "$0" "$@" --no-attach >"$log" 2>&1 </dev/null &
+  echo "Stopping the session from inside it; this window closes. Output: $log"
+  [[ $ACTION == stop ]] || echo "Then attach to the new session: tmux attach -t $SESSION"
+  sleep 2
+  exit 0
+fi
 [[ -f $WS_DIR/install/setup.bash ]] || die "workspace not built: $WS_DIR/install/setup.bash is missing"
 
 attach() {
   if [[ $ATTACH -eq 0 ]]; then echo "Session $SESSION is running: tmux attach -t $SESSION"; return; fi
   if [[ -n ${TMUX:-} ]]; then tmux switch-client -t "$SESSION"; else tmux attach -t "$SESSION"; fi
 }
+
+# turtlebot3_node keeps driving with the last speed it got until a new one arrives; neither it nor the
+# OpenCR has a timeout. So the robot is always sent zero speed when Nav2 or the teleop stop. An interactive
+# shell reads ~/.bashrc for ROS_DOMAIN_ID like the panes; TwistStamped is what turtlebot3_node takes in Jazzy.
+zero_speed() {
+  bash -ic "source '$WS_DIR/install/setup.bash' && timeout 15 ros2 topic pub --times 5 -r 10 /cmd_vel geometry_msgs/msg/TwistStamped '{}'"     >/dev/null 2>&1 && echo "Robot sent zero speed"     || echo "mapping.sh: could not send zero speed to /cmd_vel; make sure the robot stands still" >&2
+}
+
+# Ctrl+C in every pane lets Nav2 and the teleop shut down properly, then the session is killed and the
+# robot is sent zero speed. A plain tmux kill-session would leave the robot driving.
+end_session() {
+  local pane busy
+  for pane in $(tmux list-panes -s -t "$SESSION" -F '#{pane_id}'); do tmux send-keys -t "$pane" C-c; done
+  for _ in $(seq 30); do
+    busy=$(tmux list-panes -s -t "$SESSION" -F '#{pane_current_command}' | grep -cvx bash || true)
+    [[ $busy -eq 0 ]] && break
+    sleep 0.5
+  done
+  tmux kill-session -t "$SESSION"
+  zero_speed
+}
+
+if [[ $ACTION == stop ]]; then
+  if tmux has-session -t "$SESSION" 2>/dev/null; then end_session; echo "Session $SESSION stopped"; else echo "No session $SESSION"; fi
+  exit 0
+fi
 
 # The panes are interactive shells, so ~/.bashrc supplies ROS_DOMAIN_ID, RMW_IMPLEMENTATION and so on.
 SRC="source $WS_DIR/install/setup.bash"
@@ -92,6 +129,7 @@ if [[ $ACTION != start ]]; then
       sleep 0.5
     done
     tmux kill-window -t "$SESSION:explore"
+    zero_speed
     if [[ $GAMEPAD -eq 0 ]]; then
       tmux select-pane -t "$P_TELEOP" -T 'teleop (w/x speed, a/d turn, s or space = STOP)'
       send "$P_TELEOP" "clear; ros2 run turtlebot3_teleop teleop_keyboard"
@@ -108,7 +146,7 @@ fi
 
 if tmux has-session -t "$SESSION" 2>/dev/null; then
   if [[ $RESTART -eq 1 ]]; then
-    tmux kill-session -t "$SESSION"
+    end_session
   else
     echo "Session $SESSION already exists (use --restart to start over)"
     attach
