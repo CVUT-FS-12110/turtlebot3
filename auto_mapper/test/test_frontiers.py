@@ -4,7 +4,7 @@ import numpy as np
 
 from auto_mapper.frontiers import (
     choose_frontier, cluster_cells, downsample, find_frontiers, Frontier, frontier_mask,
-    frontier_near, Grid, reachable_distances)
+    frontier_near, frontiers_near, Grid, nearest_reachable, reachable_distances)
 
 FREE = 25
 
@@ -144,6 +144,31 @@ class FrontierTest(unittest.TestCase):
         self.assertIs(choose_frontier([near_short, far_long], 0.0, 1.0), near_short)
         self.assertIs(choose_frontier([near_short, far_long], 0.5, 1.0), far_long)
         self.assertIsNone(choose_frontier([], 0.5, 1.0))
+
+    def test_focus_pulls_the_choice_towards_a_point(self):
+        near_robot = Frontier(0.0, 0.0, size=5, distance=1.0)
+        near_focus = Frontier(6.0, 0.0, size=5, distance=4.0)
+        self.assertIs(choose_frontier([near_robot, near_focus], 0.0, 1.0), near_robot)
+        self.assertIs(choose_frontier([near_robot, near_focus], 0.0, 1.0, focus=(6.0, 0.0), focus_weight=1.0),
+                      near_focus)
+        # With no weight the focus changes nothing.
+        self.assertIs(choose_frontier([near_robot, near_focus], 0.0, 1.0, focus=(6.0, 0.0), focus_weight=0.0),
+                      near_robot)
+
+    def test_frontiers_near_a_point(self):
+        a, b = Frontier(0.0, 0.0, 5, 1.0), Frontier(3.0, 4.0, 5, 1.0)
+        self.assertEqual(frontiers_near([a, b], (0.0, 0.0), 1.0), [a])
+        self.assertEqual(frontiers_near([a, b], (0.0, 0.0), 5.0), [a, b])
+        self.assertEqual(frontiers_near([], (0.0, 0.0), 5.0), [])
+
+    def test_nearest_reachable_cell(self):
+        grid = make_grid(['..#..',
+                          '..#..'])
+        dist = reachable_distances(grid.data, (0, 0), FREE)
+        self.assertEqual(nearest_reachable(dist, (0, 1), 2), (0, 1))     # reachable itself
+        self.assertEqual(nearest_reachable(dist, (0, 2), 2), (0, 1))     # the wall: the nearest free cell
+        self.assertIsNone(nearest_reachable(dist, (0, 4), 1))            # only the cut-off side near
+        self.assertIsNone(nearest_reachable(dist, (9, 9), 2))            # outside the grid
 
 
 if __name__ == '__main__':

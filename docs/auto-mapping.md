@@ -43,9 +43,21 @@ A polygon known in advance can go into [`explorer.yaml`](../auto_mapper/config/e
 
 Limits:
 - The geofence belongs to the running SLAM. `map` starts where the robot started, so after a restart of SLAM (`--restart`) the polygon is drawn again; it is not matched to an earlier map. A small shift of the map after a loop closure moves the walls, not the polygon, which is why a margin from the edge is kept.
-- An explorer started again in the same SLAM session keeps the geofence: `mapping.sh` saves it in `/tmp/mapping_geofence.json` (launch argument `geofence_file:=`, parameter `geofence_file`), so `mapping.sh drive` followed by `mapping.sh explore` goes on with it after the turn in place, and it is shown in RViz again. A new session, `--restart` and `mapping.sh stop` delete the file, because a new SLAM has a new `map` frame. Started by hand, add `-p geofence_file:=/tmp/mapping_geofence.json` to `ros2 run auto_mapper explorer`; the file is read only if the parameter is set. If the robot is outside the saved polygon at that moment, it is rejected like any other and you draw a new one.
+- An explorer started again in the same SLAM session keeps the geofence: `mapping.sh` saves it in `/tmp/mapping_geofence.json` (launch argument `geofence_file:=`, parameter `geofence_file`), so `mapping.sh drive` followed by `mapping.sh explore` goes on with it after the turn in place, and it is shown in RViz again. A new session, `--restart` and `mapping.sh stop` delete the file, because a new SLAM has a new `map` frame. `mapping.sh auto --restart --keep-geofence` keeps it for the new session; it fits only if the robot starts at the same place and heading as before, which the script cannot check, so look at the red outline in RViz before you let the robot go (`stop` always deletes the file, so use `--restart`, not `stop` and start). Started by hand, add `-p geofence_file:=/tmp/mapping_geofence.json` to `ros2 run auto_mapper explorer`; the file is read only if the parameter is set. If the robot is outside the saved polygon at that moment, it is rejected like any other and you draw a new one.
 - It only restrains the autonomous mode. The keyboard teleop and the gamepad drive the robot wherever you steer it.
 - The keepout filter only marks costmap cells as lethal; nothing stops the robot if it is pushed across the line. Planning from inside a lethal cell may then fail, so the explorer would blacklist its goals. Stop the exploration and move the robot back inside.
+
+## Points from RViz
+
+Two ways to tell the explorer where you care about, both with the **explorer** running. The geofence is respected in both.
+
+**Go to a point.** Pick the **2D Goal Pose** tool in the RViz toolbar and drag from the point in the direction the robot should face afterwards. It publishes `/user_goal`, which only the explorer reads; the tool's usual `/goal_pose` is taken by Nav2 itself, and a goal there would fight the explorer.
+- The running frontier goal is cancelled (without blacklisting it), the robot drives to the point, and the exploration goes on from where it is. The point shows as a green ball until it is reached.
+- A point that the robot cannot get to (outside the geofence, in unknown space, on an obstacle, in a part of the map that is cut off) moves to the nearest reachable cell within `user_goal_snap` (40 cm) or, if there is none, is dropped with a reason in the log.
+- A new point replaces the one under way. Before the geofence is set, or during the first turn, the point waits. After the exploration has finished it is ignored.
+- Cancel it with `ros2 service call /explorer/cancel_user_goal std_srvs/srv/Empty`.
+
+**Explore around a point first.** The **Interact** tool shows a gray pin, the *focus*, where the robot started. Drag it where you want the exploration to start and let go (or right-click it and choose *Explore around here first*): a blue pin with a ring of `focus_radius` (1.5 m) appears. A frontier costs `focus_weight` (1.0) metres more for each metre between it and the pin, so frontiers around the pin are explored first, but nothing is excluded: it is a preference, not a boundary. A pin in space that is not known yet stays and pulls the exploration there. When its spot is on the map and no frontier is left inside the ring, the pin turns gray and the exploration is normal again. *Explore everywhere* in the same menu removes the focus at once.
 
 ## Install
 
@@ -141,6 +153,9 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 | `geofence` | – | Polygon `[x1, y1, x2, y2, ...]` in the `map` frame, instead of drawing it in RViz |
 | `geofence_margin` | 0.15 m | Distance from the polygon edge that goals and paths keep |
 | `geofence_close_radius` | 0.3 m | A click this close to the first vertex closes the polygon |
+| `user_goal_snap` | 0.4 m | How far a goal from RViz may move to the nearest reachable cell |
+| `focus_weight` | 1.0 | Cost in metres per metre between a frontier and the focus; 0 switches the focus off |
+| `focus_radius` | 1.5 m | Ring around the focus; the focus is dropped when its spot is on the map and no frontier is left in it |
 | `geofence_file` | – | File that keeps the geofence for an explorer started again in the same SLAM session (`mapping.sh` sets it) |
 | `keepout_ramp` | 0.3 m | Inside the edge, Nav2 costs rise over this distance towards the line |
 | `keepout_resolution` | 0.05 m | Cell size of the mask sent to the Nav2 keepout filter |

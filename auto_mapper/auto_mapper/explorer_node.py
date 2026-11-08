@@ -7,6 +7,7 @@ import subprocess
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Point, PointStamped, PoseStamped
 from interactive_markers import InteractiveMarkerServer
+from interactive_markers.menu_handler import MenuHandler
 from nav2_msgs.action import NavigateToPose, Spin
 from nav2_msgs.msg import CostmapFilterInfo
 from nav_msgs.msg import OccupancyGrid
@@ -24,7 +25,8 @@ from visualization_msgs.msg import (
 
 from auto_mapper import geofence as fence
 from auto_mapper.frontiers import (
-    choose_frontier, downsample, find_frontiers, frontier_near, Grid)
+    choose_frontier, downsample, find_frontiers, frontier_near, frontiers_near, Grid, nearest_reachable,
+    reachable_distances)
 
 KEEPOUT_MASK_TOPIC = '/keepout_filter_mask'
 KEEPOUT_INFO_TOPIC = '/costmap_filter_info'
@@ -63,6 +65,9 @@ class Explorer(Node):
         self.keepout_resolution = self.declare_parameter('keepout_resolution', 0.05).value
         self.keepout_extra = self.declare_parameter('keepout_extra', 10.0).value
         self.keepout_ramp = self.declare_parameter('keepout_ramp', 0.3).value
+        self.user_goal_snap = self.declare_parameter('user_goal_snap', 0.4).value
+        self.focus_weight = self.declare_parameter('focus_weight', 1.0).value
+        self.focus_radius = self.declare_parameter('focus_radius', 1.5).value
         preset = self.declare_parameter('geofence', Parameter.Type.DOUBLE_ARRAY).value
         self.geofence_file = self.declare_parameter('geofence_file', '').value
 
@@ -97,6 +102,10 @@ class Explorer(Node):
         self.wait_until = 0.0      # no new goal before this time
         self.check_goal = False     # after settling: blacklist the last goal if it is still a frontier
         self.goal_cleared = False   # the running goal was cancelled because its area got explored
+        self.user_goal = None       # (x, y, yaw or None) asked for in RViz and not finished yet
+        self.active_user_goal = None  # the user_goal that Nav2 is working on, else None
+        self.focus = None           # (x, y): frontiers around it are explored first; None: no preference
+        self.focus_pin = None       # where the focus handle stands in RViz
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -120,6 +129,13 @@ class Explorer(Node):
         self.preview = None         # the polygon while a vertex is being dragged
         self.create_subscription(PointStamped, 'clicked_point', self.on_clicked_point, 10)
         self.create_service(Empty, '~/clear_geofence', self.on_clear_geofence)
+        # A point to drive to (RViz tool 2D Goal Pose on /user_goal, not /goal_pose, which Nav2 itself takes),
+        # and a focus handle: right-click it for the menu, or drag it to explore around its place first.
+        self.create_subscription(PoseStamped, 'user_goal', self.on_user_goal, 10)
+        self.create_service(Empty, '~/cancel_user_goal', self.on_cancel_user_goal)
+        self.focus_menu = MenuHandler()
+        self.menu_focus_on = self.focus_menu.insert('Explore around here first', callback=self.on_focus_menu)
+        self.menu_focus_off = self.focus_menu.insert('Explore everywhere', callback=self.on_focus_menu)
         self.create_timer(1.0, self.publish_geofence_markers)
         self.create_timer(period, self.tick)
         self.get_logger().info('Waiting for /map, TF and the navigate_to_pose action server...')
@@ -155,14 +171,24 @@ class Explorer(Node):
         if self.pending_polygon is not None:
             self.set_geofence(self.pending_polygon)
             self.pending_polygon = None
+        if self.focus_pin is None:
+            self.focus_pin = robot
+            self.update_focus_marker()
         if self.spinning:
             return
         if self.busy:
-            if self.now() - self.goal_time > self.goal_timeout and self.goal_handle:
+            if (self.goal_handle and self.user_goal is not None
+                    and self.user_goal is not self.active_user_goal):
+                # A new goal from RViz goes before the frontier (or the earlier user goal) that is running.
+                self.get_logger().info('Interrupting the running goal for the goal from RViz')
+                self.goal_cleared = True
+                self.goal_handle.cancel_goal_async()
+                self.goal_handle = None
+            elif self.now() - self.goal_time > self.goal_timeout and self.goal_handle:
                 self.get_logger().warn('Goal timed out, cancelling it')
                 self.goal_handle.cancel_goal_async()
                 self.goal_handle = None
-            elif self.goal_handle and not self.goal_is_frontier():
+            elif self.goal_handle and self.active_user_goal is None and not self.goal_is_frontier():
                 self.get_logger().info('Goal area is explored already, cancelling it')
                 self.goal_cleared = True
                 self.goal_handle.cancel_goal_async()
@@ -194,11 +220,19 @@ class Explorer(Node):
                 'Waiting for the geofence: click its vertices in RViz with "Publish Point" and close it '
                 'by clicking the first vertex again', throttle_duration_sec=10.0)
             return
+        if self.user_goal is not None:
+            self.start_user_goal(robot)
+            return
 
         frontiers = find_frontiers(self.grid, robot, self.min_frontier_size, self.free_threshold,
                                    self.blacklist, self.blacklist_radius,
                                    self.clearance, self.min_goal_distance, self.allowed_mask())
-        target = choose_frontier(frontiers, self.size_weight, self.grid.resolution)
+        if self.focus_done(frontiers):
+            self.get_logger().info('The area around the focus is explored, exploring everywhere again')
+            self.focus = None
+            self.update_focus_marker()
+        target = choose_frontier(frontiers, self.size_weight, self.grid.resolution,
+                                 self.focus, self.focus_weight)
         self.frontiers = frontiers
         if target is None:
             self.empty_ticks += 1
@@ -425,6 +459,138 @@ class Explorer(Node):
                    + self.polygon_markers(4, self.preview or [], True, preview_color))
         self.geofence_markers.publish(MarkerArray(markers=markers))
 
+    def on_user_goal(self, msg):
+        """A point to drive to, from the 2D Goal Pose tool of RViz; it goes before the frontiers."""
+        if msg.header.frame_id != self.map_frame:
+            self.get_logger().warn(f'The goal is in frame "{msg.header.frame_id}", set the fixed frame of '
+                                   f'RViz to "{self.map_frame}"')
+            return
+        if self.done:
+            self.get_logger().info('The exploration is finished, the goal from RViz is ignored')
+            return
+        q = msg.pose.orientation
+        yaw = None
+        if q.x or q.y or q.z or q.w:
+            yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        self.user_goal = (msg.pose.position.x, msg.pose.position.y, yaw)
+        self.get_logger().info(f'Goal from RViz at ({self.user_goal[0]:.2f}, {self.user_goal[1]:.2f})')
+        self.publish_markers()
+
+    def on_cancel_user_goal(self, request, response):
+        if self.user_goal is not None:
+            self.user_goal = None
+            if self.active_user_goal is not None and self.goal_handle:
+                self.goal_cleared = True
+                self.goal_handle.cancel_goal_async()
+                self.goal_handle = None
+            self.get_logger().info('Goal from RViz cancelled, exploring goes on')
+            self.publish_markers()
+        return response
+
+    def start_user_goal(self, robot):
+        """Send the goal from RViz to Nav2 if the robot can get there (inside the geofence, free, connected)."""
+        x, y, yaw = self.user_goal
+        grid = self.grid
+        clearance_cells = int(math.ceil(self.clearance / grid.resolution))
+        dist = reachable_distances(grid.data, grid.world_to_cell(*robot), self.free_threshold, clearance_cells,
+                                   self.allowed_mask())
+        cell = nearest_reachable(dist, grid.world_to_cell(x, y), int(round(self.user_goal_snap / grid.resolution)))
+        if cell is None:
+            self.get_logger().warn(
+                f'The goal from RViz at ({x:.2f}, {y:.2f}) cannot be reached: it is outside the geofence, in '
+                'unknown space, on an obstacle or cut off. Dropped.')
+            self.user_goal = None
+            self.publish_markers()
+            return
+        gx, gy = grid.cell_to_world(*cell)
+        if yaw is None:
+            yaw = math.atan2(gy - robot[1], gx - robot[0])
+        goal = NavigateToPose.Goal()
+        goal.pose = PoseStamped()
+        goal.pose.header.frame_id = self.map_frame
+        goal.pose.header.stamp = self.get_clock().now().to_msg()
+        goal.pose.pose.position.x = gx
+        goal.pose.pose.position.y = gy
+        goal.pose.pose.orientation.z = math.sin(yaw / 2)
+        goal.pose.pose.orientation.w = math.cos(yaw / 2)
+        moved = math.hypot(gx - x, gy - y)
+        self.get_logger().info(f'Going to the goal from RViz ({gx:.2f}, {gy:.2f})'
+                               + (f', {moved:.2f} m from the point you gave, which is not reachable' if moved > 0.1 else ''))
+        self.busy = True
+        self.active_user_goal = self.user_goal
+        self.goal_xy = (gx, gy)
+        self.goal_time = self.now()
+        self.nav.send_goal_async(goal).add_done_callback(self.on_goal_response)
+        self.publish_markers()
+
+    def update_focus_marker(self):
+        """The focus handle: gray pin when there is no focus, blue pin and a ring of focus_radius when there is."""
+        if self.focus_pin is None:
+            return
+        active = self.focus is not None
+        handle = InteractiveMarker()
+        handle.header.frame_id = self.map_frame
+        handle.name = 'focus'
+        handle.description = 'focus' if active else ''
+        handle.scale = 0.6
+        handle.pose.position.x, handle.pose.position.y, handle.pose.position.z = (
+            self.focus_pin[0], self.focus_pin[1], 0.05)
+        handle.pose.orientation.w = 1.0
+        control = InteractiveMarkerControl()
+        control.name = 'move'
+        control.interaction_mode = InteractiveMarkerControl.MOVE_PLANE
+        control.orientation.w = control.orientation.y = math.sqrt(0.5)   # the plane normal is z
+        control.always_visible = True
+        pin = Marker()
+        pin.type = Marker.SPHERE
+        pin.scale.x = pin.scale.y = pin.scale.z = 0.25
+        pin.color.r, pin.color.g, pin.color.b, pin.color.a = (0.1, 0.4, 1.0, 1.0) if active else (0.6, 0.6, 0.6, 0.9)
+        control.markers.append(pin)
+        if active:
+            ring = Marker()
+            ring.type = Marker.CYLINDER
+            ring.scale.x = ring.scale.y = 2 * self.focus_radius
+            ring.scale.z = 0.02
+            ring.color.r, ring.color.g, ring.color.b, ring.color.a = 0.1, 0.4, 1.0, 0.2
+            control.markers.append(ring)
+        handle.controls.append(control)
+        self.handles.insert(handle, feedback_callback=self.on_focus_feedback)
+        self.focus_menu.apply(self.handles, 'focus')
+        self.handles.applyChanges()
+
+    def on_focus_feedback(self, feedback):
+        """Letting go of the handle puts the focus there."""
+        if feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
+            self.set_focus((feedback.pose.position.x, feedback.pose.position.y))
+
+    def on_focus_menu(self, feedback):
+        if feedback.menu_entry_id == self.menu_focus_on:
+            self.set_focus((feedback.pose.position.x, feedback.pose.position.y))
+        elif feedback.menu_entry_id == self.menu_focus_off and self.focus is not None:
+            self.focus = None
+            self.get_logger().info('Focus removed, exploring everywhere')
+            self.update_focus_marker()
+
+    def set_focus(self, point):
+        self.focus_pin = point
+        self.focus = point
+        self.get_logger().info(f'Exploring around ({point[0]:.2f}, {point[1]:.2f}) first '
+                               f'(within {self.focus_radius} m), then everywhere')
+        self.update_focus_marker()
+
+    def focus_done(self, frontiers):
+        """Is the focus explored: its spot is on the map and no frontier is left within focus_radius of it?
+
+        A focus in space that is not known yet stays, however far the nearest frontier is: it pulls the
+        exploration there.
+        """
+        if self.focus is None:
+            return False
+        row, col = self.grid.world_to_cell(*self.focus)
+        if not self.grid.in_bounds(row, col) or self.grid.data[row, col] < 0:
+            return False
+        return not frontiers_near(frontiers, self.focus, self.focus_radius)
+
     def goal_is_frontier(self):
         row, col = self.grid.world_to_cell(*self.goal_xy)
         radius = int(round(self.goal_radius / self.grid.resolution))
@@ -468,7 +634,12 @@ class Explorer(Node):
             goal.pose.position.x, goal.pose.position.y = self.goal_xy
         else:
             goal.action = Marker.DELETE
-        self.markers.publish(MarkerArray(markers=[frontiers, goal]))
+        wanted = marker('user_goal', Marker.SPHERE, 0.3, (0.0, 1.0, 0.2, 0.9))
+        if self.user_goal is not None:
+            wanted.pose.position.x, wanted.pose.position.y = self.user_goal[0], self.user_goal[1]
+        else:
+            wanted.action = Marker.DELETE
+        self.markers.publish(MarkerArray(markers=[frontiers, goal, wanted]))
 
     def on_goal_response(self, future):
         self.goal_handle = future.result()
@@ -477,6 +648,7 @@ class Explorer(Node):
             self.get_logger().info('Nav2 is not accepting goals yet, trying again shortly')
             self.goal_handle = None
             self.busy = False
+            self.active_user_goal = None
             self.wait_until = self.now() + self.reject_backoff
             return
         self.goal_handle.get_result_async().add_done_callback(self.on_result)
@@ -485,9 +657,20 @@ class Explorer(Node):
         status = future.result().status
         self.goal_handle = None
         self.busy = False
+        user_goal, self.active_user_goal = self.active_user_goal, None
+        if user_goal is not None and self.user_goal is user_goal and not self.goal_cleared:
+            self.user_goal = None
         self.publish_markers()
         if self.goal_cleared:
-            self.goal_cleared = False   # nothing to judge, go straight to the next frontier
+            self.goal_cleared = False   # nothing to judge, go straight to the next goal
+            return
+        if user_goal is not None:
+            # A goal from RViz is the user's business: it is not judged and nothing is blacklisted.
+            if status == GoalStatus.STATUS_SUCCEEDED:
+                self.get_logger().info('Reached the goal from RViz, exploring goes on')
+            else:
+                self.get_logger().info(f'The goal from RViz ended with status {status}, exploring goes on')
+            self.wait_until = self.now() + 1.0
             return
         if status != GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info(f'Goal ended with status {status}')

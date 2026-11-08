@@ -175,6 +175,13 @@ Visualization Manager:
       Hide Inactive Objects: true
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /user_goal
     - Class: rviz_default_plugins/PublishPoint
       Single click: true
       Topic:

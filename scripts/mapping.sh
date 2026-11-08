@@ -2,7 +2,7 @@
 # Opens a tmux session on the PC (WSL2) with everything needed to map a room.
 # Run it on the PC only; the robot (or Gazebo) must already be running.
 #
-# Usage: mapping.sh [manual|auto] [--sim] [--gamepad] [--restart] [--no-attach]
+# Usage: mapping.sh [manual|auto] [--sim] [--gamepad] [--restart] [--keep-geofence] [--no-attach]
 #        mapping.sh explore|drive [--no-attach]
 #        mapping.sh stop
 #   manual      SLAM + RViz + keyboard teleop (default)
@@ -11,6 +11,8 @@
 #   --gamepad   manual mode without the keyboard teleop: drive with the gamepad on the robot
 #               (the keyboard teleop publishes zero speed while idle and would fight the gamepad)
 #   --restart   kill an existing session and start a new one
+#   --keep-geofence  keep the geofence of the previous session (with --restart). A new SLAM has a new map
+#               frame, so the polygon fits only if the robot starts at the same place and heading as before
 #   --no-attach create the session without attaching to it
 #   explore     in a running manual session: stop the keyboard teleop and let Nav2 + explorer
 #               finish the map (window "explore"); SLAM keeps running, so the map is kept
@@ -33,6 +35,7 @@ GEOFENCE_FILE=/tmp/mapping_geofence.json
 SIM=false
 ATTACH=1
 RESTART=0
+KEEP_GEOFENCE=0
 GAMEPAD=0
 ACTION=start
 
@@ -45,9 +48,10 @@ for arg in "$@"; do
     --sim) SIM=true ;;
     --gamepad) GAMEPAD=1 ;;
     --restart) RESTART=1 ;;
+    --keep-geofence) KEEP_GEOFENCE=1 ;;
     --no-attach) ATTACH=0 ;;
     stop) ACTION=stop ;;
-    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $arg (try --help)" ;;
   esac
 done
@@ -158,7 +162,15 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   fi
 fi
 
-rm -f "$GEOFENCE_FILE"   # a new session means a new SLAM and map frame
+# A new session means a new SLAM and map frame, where the old polygon fits only if the robot starts at the
+# same pose as before: --keep-geofence leaves the decision to you.
+if [[ $KEEP_GEOFENCE -eq 1 && -f $GEOFENCE_FILE ]]; then
+  echo "Keeping the geofence of the previous session: the robot must start at the same place and heading"
+elif [[ $KEEP_GEOFENCE -eq 1 ]]; then
+  echo "mapping.sh: --keep-geofence, but there is no saved geofence (mapping.sh stop deletes it); draw it in RViz" >&2
+else
+  rm -f "$GEOFENCE_FILE"
+fi
 SLAM_PARAMS='$(ros2 pkg prefix auto_mapper)/share/auto_mapper/config/slam_toolbox.yaml'
 # Our own view from this repository in both modes. The Nav2 default view has a panel waiting for the Nav2
 # servers ("controller_server service not available") in manual mode, the cartographer view subscribes to

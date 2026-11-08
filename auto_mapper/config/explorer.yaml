@@ -29,3 +29,7 @@ explorer:
     keepout_resolution: 0.05    # m per cell of the mask sent to the Nav2 keepout filter
     keepout_ramp: 0.3           # m inside the edge over which Nav2 costs rise towards the line
     keepout_extra: 10.0         # m the mask reaches past the polygon; the costmap is not filtered beyond it
+    # Points from RViz
+    user_goal_snap: 0.4         # m; a goal that is not reachable moves to the nearest reachable cell within this
+    focus_weight: 1.0           # m of cost per m between a frontier and the focus (0: the focus changes nothing)
+    focus_radius: 1.5           # m around the focus; once its spot is known and no frontier is left in it, the focus is dropped

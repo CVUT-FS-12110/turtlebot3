@@ -195,8 +195,42 @@ def find_frontiers(grid, robot_xy, min_size, free_threshold, blacklist=(), black
     return frontiers
 
 
-def choose_frontier(frontiers, size_weight, resolution):
-    """Cheapest frontier: path length minus a bonus for the frontier length (both in metres)."""
+def choose_frontier(frontiers, size_weight, resolution, focus=None, focus_weight=0.0):
+    """Cheapest frontier: path length minus a bonus for the frontier length (both in metres).
+
+    With a focus point, each metre between the frontier and the focus costs focus_weight metres more, so
+    frontiers around the focus are explored first without ruling the others out.
+    """
     if not frontiers:
         return None
-    return min(frontiers, key=lambda f: f.distance - size_weight * f.size * resolution)
+
+    def cost(f):
+        total = f.distance - size_weight * f.size * resolution
+        if focus is not None:
+            total += focus_weight * math.hypot(f.x - focus[0], f.y - focus[1])
+        return total
+
+    return min(frontiers, key=cost)
+
+
+def frontiers_near(frontiers, point, radius):
+    """The frontiers whose target lies within radius metres of the point."""
+    return [f for f in frontiers if math.hypot(f.x - point[0], f.y - point[1]) <= radius]
+
+
+def nearest_reachable(dist, cell, radius_cells):
+    """The cell with a finite path length (see reachable_distances) nearest to cell within radius_cells.
+
+    Returns (row, col) or None. The cell itself wins if it is reachable.
+    """
+    rows, cols = dist.shape
+    best, best_d2 = None, None
+    for dr in range(-radius_cells, radius_cells + 1):
+        for dc in range(-radius_cells, radius_cells + 1):
+            r, c = cell[0] + dr, cell[1] + dc
+            d2 = dr * dr + dc * dc
+            if d2 > radius_cells * radius_cells or not (0 <= r < rows and 0 <= c < cols):
+                continue
+            if np.isfinite(dist[r, c]) and (best is None or d2 < best_d2):
+                best, best_d2 = (r, c), d2
+    return best
