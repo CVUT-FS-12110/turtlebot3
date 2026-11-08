@@ -1,6 +1,6 @@
 # EKF odometry (robot_localization)
 
-By default the robot has no EKF. `turtlebot3_node` integrates the wheel encoders and takes the heading from the IMU orientation, and publishes the result as `/odom` and the `odom → base_footprint` transform. The EKF in [`robot/`](../robot) replaces that transform with a filtered one built from the wheel speed and the gyro yaw rate.
+`bringup.launch.py` starts the EKF by default; `ekf:=false` gives the plain bring-up. Without it, `turtlebot3_node` integrates the wheel encoders and takes the heading from the IMU orientation, and publishes the result as `/odom` and the `odom → base_footprint` transform. The EKF in [`robot/`](../robot) replaces that transform with a filtered one built from the wheel speed and the gyro yaw rate.
 
 Expect a modest gain: the heading already comes from the IMU. The EKF mainly smooths the odometry and removes jumps; it does not fix wheel slip. Compare the maps with and without it.
 
@@ -21,11 +21,11 @@ sudo apt install ros-jazzy-robot-localization
 git -C ~/turtlebot3-setup pull
 ```
 
-Start this **instead of** the normal bring-up (never both):
+The normal bring-up includes the EKF (`ekf:=false` without it; `bringup_ekf.launch.py` still works and does the same):
 
 ```bash
 export TURTLEBOT3_MODEL=burger
-ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
+ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 ```
 
 It also starts the battery monitor for the tmux status bar ([battery-status.md](battery-status.md)). The launch file starts `robot.launch.py` with `odometry.publish_tf` switched off in a temporary copy of the installed parameters, so the EKF is the only publisher of `odom → base_footprint`. The Pi needs no build.

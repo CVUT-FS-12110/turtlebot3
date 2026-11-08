@@ -183,7 +183,7 @@ Check everything at once with [`scripts/check.sh`](../scripts/check.sh) (pass th
 
 ## 5. Possible improvements
 
-- **Better odometry:** fuse the IMU and the wheel odometry with `robot_localization` (EKF). The gyro is usually more accurate in turns than the wheels. Not set up here.
+- **Better odometry:** fuse the IMU and the wheel odometry with `robot_localization` (EKF). The gyro is usually more accurate in turns than the wheels. Set up and on by default, see [ekf.md](ekf.md).
 - **Battery:** the voltage is shown in the tmux status bar when you start `robot/launch/bringup.launch.py`, see [battery-status.md](battery-status.md). Stop driving when it turns red, a deeply discharged LiPo is damaged.
 - **IMU variant:** the OpenCR repository has a branch `add_icm42670p`, so newer boards may carry a different IMU than the MPU9250. If `/imu` stays empty or looks wrong, check the board revision first.
 - **Stable device names:** if you add more USB serial devices, `/dev/ttyUSB0` and `/dev/ttyACM0` can swap. Add udev rules with fixed symlinks in that case.

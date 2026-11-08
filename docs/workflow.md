@@ -7,7 +7,7 @@ Two machines work together, and every instruction in this repository belongs to 
 | Role | SLAM, Nav2, explorer, RViz, teleop, Gazebo | bring-up: motors, OpenCR, LiDAR, optional EKF |
 | ROS packages | ROS 2 desktop, Gazebo, Nav2, `slam_toolbox`, `auto_mapper` | ROS 2 base, TurtleBot3 packages, `robot_localization` |
 | Builds with `colcon` | `~/turtlebot3_ws` including `auto_mapper` | `~/turtlebot3_ws` with TurtleBot3 packages only (slow, rarely) |
-| Scripts from this repo | `scripts/mapping.sh`, `scripts/check.sh` | `robot/launch/bringup_ekf.launch.py`, `scripts/check.sh` |
+| Scripts from this repo | `scripts/mapping.sh`, `scripts/check.sh` | `robot/launch/bringup.launch.py`, `scripts/check.sh` |
 | Shell | WSL2 terminal | SSH (`ssh turtle@turtlebot.lan`, see [robot-raspberry-pi.md](robot-raspberry-pi.md#14-fixed-address-and-name-mikrotik)), preferably inside tmux |
 
 Both machines need the same `ROS_DOMAIN_ID`, `TURTLEBOT3_MODEL` and `RMW_IMPLEMENTATION` (see [Common settings](../README.md#common-settings)). The installer writes them to `~/.bashrc`.
@@ -82,17 +82,12 @@ export TURTLEBOT3_MODEL=burger
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
 ```
 
-This is the normal bring-up plus the battery voltage in the tmux status bar ([battery-status.md](battery-status.md)). It also starts the right LiDAR driver for `LDS_MODEL` (the RPLiDAR A1M8, see [rplidar.md](rplidar.md)); the plain `ros2 launch turtlebot3_bringup robot.launch.py` does not know it and would start the LDS-01 driver, so do not use it with this robot. For the gamepad add `gamepad:=true` ([gamepad.md](gamepad.md)):
+This is the normal bring-up with the EKF odometry ([ekf.md](ekf.md); `ekf:=false` without it) plus the battery voltage in the tmux status bar ([battery-status.md](battery-status.md)). It also starts the right LiDAR driver for `LDS_MODEL` (the RPLiDAR A1M8, see [rplidar.md](rplidar.md)); the plain `ros2 launch turtlebot3_bringup robot.launch.py` does not know it and would start the LDS-01 driver, so do not use it with this robot. For the gamepad add `gamepad:=true` ([gamepad.md](gamepad.md)):
 
 ```bash
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py gamepad:=true
 ```
 
-Or with the EKF odometry (**instead of**, never together with, the lines above; it shows the battery too, see [ekf.md](ekf.md)):
-
-```bash
-ros2 launch ~/turtlebot3-setup/robot/launch/bringup_ekf.launch.py
-```
 
 ### 2. PC (WSL2)
 
@@ -136,9 +131,9 @@ ROBOT: stop the bring-up with `Ctrl+C`, then `sudo shutdown now` before switchin
 | `colcon build --packages-select auto_mapper` | ✅ | ❌ |
 | `turtlebot3_bringup` (with or without EKF) | ❌ | ✅ |
 | `apt install ros-jazzy-slam-toolbox` | ✅ | ❌ |
-| `apt install ros-jazzy-robot-localization` | not needed | ✅ (EKF only) |
+| `apt install ros-jazzy-robot-localization` | not needed | ✅ (EKF, on by default) |
 | `git pull` of this repository | ✅ | ✅ |
 | `scripts/check.sh <other-host-ip>` | ✅ | ✅ |
 | `scripts/install.sh` | role `pc` | role `robot` |
 
-Never run two bring-ups at once (normal and EKF): both publish the odometry and the `odom → base_footprint` transform.
+Never run two bring-ups at once: both publish the odometry and the `odom → base_footprint` transform.

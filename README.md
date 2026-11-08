@@ -14,7 +14,7 @@ Every step says which machine it is for: **PC** (Windows 11 + WSL2) or **ROBOT**
 | 4 | both | Check that the PC sees the robot's topics (same `ROS_DOMAIN_ID`, CycloneDDS, multicast) | [`scripts/check.sh`](scripts/check.sh), [Common settings](#common-settings) |
 | 5 | PC (+ ROBOT) | Drive the robot by hand with the keyboard (PC) or the Evolveo gamepad (plugged into the Pi, `bringup.launch.py gamepad:=true`) | [docs/gamepad.md](docs/gamepad.md), [docs/auto-mapping.md](docs/auto-mapping.md) |
 | 6 | PC | Map a room by hand (SLAM + teleop), then let the robot explore on its own | [docs/auto-mapping.md](docs/auto-mapping.md) |
-| 7 | ROBOT | Optional: filter the odometry with an EKF for better maps | [docs/ekf.md](docs/ekf.md) |
+| 7 | ROBOT | EKF odometry: on by default in `bringup.launch.py` (`ekf:=false` turns it off) | [docs/ekf.md](docs/ekf.md) |
 | 8 | ROBOT | Optional: show the battery voltage in the tmux status bar | [docs/battery-status.md](docs/battery-status.md) |
 | 9 | ROBOT | LiDAR is the RPLiDAR A1M8: install its driver on an existing robot (`scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) |
 | 10 | ROBOT | Only with the old LDS-01 and few points or 2.5 scans per second: robust LDS-01 driver | [docs/lidar-driver.md](docs/lidar-driver.md) |
@@ -47,7 +47,7 @@ From the second day on, and for updating both machines from GitHub, use [docs/wo
 | Gamepad teleop (Evolveo Fighter F1) | [docs/gamepad.md](docs/gamepad.md) | ✅ working: `bringup.launch.py gamepad:=true` drives the robot (X-input: `enable_button:=4`, D-input: `6`); `mapping.sh --gamepad` for manual mapping, a full map not checked yet |
 | Problems and checks | [docs/troubleshooting.md](docs/troubleshooting.md), [`scripts/check.sh`](scripts/check.sh) | 📖 |
 | Automatic mapping (`auto_mapper`) | [docs/auto-mapping.md](docs/auto-mapping.md) | 🧪 verified in Gazebo (`turtlebot3_world`), not yet run on the robot |
-| EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 written, not yet run on the robot |
+| EKF odometry (`robot/`) | [docs/ekf.md](docs/ekf.md) | 📝 on by default in the bring-up, not yet run on the robot |
 | Battery voltage in tmux (`robot/battery_status.py`) | [docs/battery-status.md](docs/battery-status.md) | ✅ working (display checked on the robot) |
 | RPLiDAR A1M8 (`rplidar_ros`, `scripts/set-lidar.sh`) | [docs/rplidar.md](docs/rplidar.md) | 🔧 `/scan` arrives on the PC at 7.1 Hz with 319 of 360 valid rays, sensor turned 180° (`lidar_yaw`, see the doc); map not checked yet |
 | Robust LDS-01 driver (`robot/lds01_driver.py`) | [docs/lidar-driver.md](docs/lidar-driver.md) | ✅ working (5 scans per second and about 190 valid rays per scan on the robot) |

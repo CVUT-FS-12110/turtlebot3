@@ -128,7 +128,7 @@ cd auto_mapper && python3 -m unittest discover -s test
 
 The robot code does not change for automatic mapping; everything new runs on the PC.
 
-**ROBOT (Pi, over SSH):** the usual bring-up, without the gamepad. Nav2 and the gamepad would both publish `/cmd_vel` and fight each other.
+**ROBOT (Pi, over SSH):** the usual bring-up (with the EKF, `ekf:=false` without), no gamepad. Nav2 and the gamepad would both publish `/cmd_vel` and fight each other.
 
 ```bash
 ros2 launch ~/turtlebot3-setup/robot/launch/bringup.launch.py
