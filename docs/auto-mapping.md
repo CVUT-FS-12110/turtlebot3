@@ -14,7 +14,7 @@ A goal whose surroundings get explored on the way is cancelled and the next one 
 
 Nav2 rejects goals until all its servers are active; that is not held against the goal, the explorer just tries again 2 s later. If the robot ends up outside the known map (Nav2 cannot plan from there), it turns in place to let SLAM grow the map; after 3 such turns without success it gives up and saves what there is. All times follow the ROS clock, so they also hold in a slow simulation.
 
-The launch file starts Nav2 with the ROBOTIS parameters for the Burger, with two changes. `collision_monitor` only stops the robot after 1 s without a scan instead of 0.2 s; with 0.2 s the scan period plus Wi-Fi jitter stopped the robot hundreds of times in the simulation. The top speed is 0.18 m/s, set with `max_speed:=` (the default 0.3 m/s is above the 0.22 m/s the Burger can do).
+The launch file starts Nav2 with the ROBOTIS parameters for the Burger, with three changes. `collision_monitor` only stops the robot after 1 s without a scan instead of 0.2 s; with 0.2 s the scan period plus Wi-Fi jitter stopped the robot hundreds of times in the simulation. The top speed is 0.18 m/s, set with `max_speed:=` (the default 0.3 m/s is above the 0.22 m/s the Burger can do). The costmaps use the 2.5 cm cells of the SLAM map instead of 5 cm, so RViz shows them as fine as the map; this makes Nav2 handle four times as many cells.
 
 ## Install
 

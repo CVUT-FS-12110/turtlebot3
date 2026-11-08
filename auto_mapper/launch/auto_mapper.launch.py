@@ -30,10 +30,13 @@ def generate_launch_description():
     # - collision_monitor stops the robot when the newest scan is older than source_timeout. The default
     #   0.2 s is barely longer than the scan period (0.14 s at 7 Hz), so Wi-Fi jitter would stop it all the time.
     # - The default top speed of 0.3 m/s is above the 0.22 m/s the Burger can do.
+    # - The costmaps have the 2.5 cm cells of the SLAM map instead of 5 cm, so they look as fine in RViz.
     nav2_params = RewrittenYaml(
         source_file=os.path.join(tb3_nav, 'param', f'{model}.yaml'),
         param_rewrites={
             'collision_monitor.ros__parameters.scan.source_timeout': '1.0',
+            'global_costmap.global_costmap.ros__parameters.resolution': '0.025',
+            'local_costmap.local_costmap.ros__parameters.resolution': '0.025',
             'controller_server.ros__parameters.FollowPath.max_vel_x': max_speed,
             'controller_server.ros__parameters.FollowPath.max_speed_xy': max_speed,
         },
