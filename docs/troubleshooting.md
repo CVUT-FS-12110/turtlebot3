@@ -39,6 +39,9 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 | `executable 'rplidar_node' not found on the libexec directory` | The apt build installs the node as `rplidar_composition`. Update the repository (`git pull`): the launch file uses whichever exists. |
 | `package 'joy' not found` (with `gamepad:=true`) | `sudo apt install ros-jazzy-joy ros-jazzy-teleop-twist-joy joystick` on the robot. |
 | RViz: `Message Filter dropping message ... queue is full` | Fixed Frame is `map` but SLAM does not run, so the scan cannot be placed. Use `odom` or `base_scan` until SLAM runs. Not a clock problem. See [rplidar.md](rplidar.md#looking-at-the-scan-in-rviz-pc). |
+| RViz (Nav2 view): `dropping message: frame 'odom' ... queue is full` while SLAM runs | `map → odom` missing for those times. `ros2 run tf2_ros tf2_monitor map odom`: a `Max Delay` of minutes means a stale second publisher from an old session; find it with `ps -eo pid,etime,cmd`, `pkill` it. Otherwise check the clocks (below). |
+| Robot keeps driving after the session ended | Nothing stops the wheels when commands stop. `mapping.sh stop`/`--restart` send zero speed; after a crash or `tmux kill-session`: `ros2 topic pub --times 5 -r 10 /cmd_vel geometry_msgs/msg/TwistStamped "{}"` |
+| `Could not resolve hostname turtlebot.local` (WSL2) | WSL2 does not resolve `.local`; use the IP or a router name, see [robot-raspberry-pi.md](robot-raspberry-pi.md#14-fixed-address-and-name-mikrotik). |
 | No points in RViz | LaserScan Reliability must be Best Effort; check the Status line of the display. `ros2 topic hz /scan` and `scripts/scan_stats.py` show whether the data arrive at all. |
 | Clear the old points in RViz | **Reset** at the bottom left (`Ctrl+R`). The SLAM map is cleared by `mapping.sh --restart`. |
 | **Walls move with the robot** while mapping | The scan is turned against the robot. The RPLiDAR on this robot is mounted turned by 180°; the launch file compensates with `lidar_yaw` (default 3.14159265, `lidar_yaw:=0` if the arrow points forward). Also check that Fixed Frame is `map` and that `odom` changes while driving (`ros2 topic echo /odom --field pose.pose.position`). |
@@ -53,7 +56,7 @@ Run [`scripts/check.sh`](../scripts/check.sh) first; it covers most of the items
 **Measure the difference** on the PC with [`scripts/clock_offset.sh`](../scripts/clock_offset.sh). It opens one SSH connection (the password is asked once), asks the robot for its time five times, and prints the offset of every sample and the median:
 
 ```bash
-~/turtlebot3-setup/scripts/clock_offset.sh
+~/turtlebot3-setup/scripts/clock_offset.sh turtle@turtlebot.lan   # or turtle@<IP>; the first sample includes the password prompt
 ```
 
 The offset is `robot - (PC before + PC after) / 2`; half of the round trip is the error of one sample. Under 0.02 s is fine; a positive value means the robot clock is ahead of the PC. Repeat it after a few minutes and after `wsl --shutdown`: a difference that grows is drift, one that returns after a restart means WSL takes a wrong time from Windows.

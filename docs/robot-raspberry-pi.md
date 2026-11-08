@@ -87,12 +87,24 @@ If you skip this and boot the stock image, the default login is `ubuntu` / `ubun
    ssh turtle@turtlebot.local
    ```
 
-   If `.local` does not resolve, find the IP address in the router's client list.
+   WSL2 does not resolve `.local` names (Windows does). Use the IP from the router's client list, or a fixed address and name on the router (1.4).
 3. Wait for the first-boot jobs to finish before running `apt`: `cloud-init status --wait`.
 
 If the Pi does not appear on Wi-Fi, connect it with an Ethernet cable for the first boot, log in, and check `/var/log/cloud-init.log` and `sudo netplan apply`. Wi-Fi can also be set later by putting a file like the `network-config` above into `/etc/netplan/` (mode `600`, with `renderer: networkd`).
 
 Not tested on the robot yet. The Wi-Fi should be a **5 GHz** network if possible (the 3B+ supports it, 2.4 GHz is usually crowded), and it must allow multicast between the PC and the robot (guest and corporate networks often do not).
+
+### 1.4 Fixed address and name (MikroTik)
+
+On the router: make the Pi's DHCP lease static (find it by its MAC `B8:27:EB:…`) and add a DNS name. Not `.local`, that is reserved for mDNS.
+
+```
+/ip dhcp-server lease print where host-name~"turtle"
+/ip dhcp-server lease make-static [find mac-address=<MAC>]
+/ip dns static add name=turtlebot.lan address=<IP>
+```
+
+The PCs must use the router as DNS (`/ip dns`: `allow-remote-requests: yes`; `dns-server` of the DHCP network empty or the router). Then `ssh turtle@turtlebot.lan` works from WSL2 too.
 
 ## 2. Run the installer
 

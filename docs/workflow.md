@@ -8,7 +8,7 @@ Two machines work together, and every instruction in this repository belongs to 
 | ROS packages | ROS 2 desktop, Gazebo, Nav2, `slam_toolbox`, `auto_mapper` | ROS 2 base, TurtleBot3 packages, `robot_localization` |
 | Builds with `colcon` | `~/turtlebot3_ws` including `auto_mapper` | `~/turtlebot3_ws` with TurtleBot3 packages only (slow, rarely) |
 | Scripts from this repo | `scripts/mapping.sh`, `scripts/check.sh` | `robot/launch/bringup_ekf.launch.py`, `scripts/check.sh` |
-| Shell | WSL2 terminal | SSH (`ssh turtle@turtlebot.local`), preferably inside tmux |
+| Shell | WSL2 terminal | SSH (`ssh turtle@turtlebot.lan`, see [robot-raspberry-pi.md](robot-raspberry-pi.md#14-fixed-address-and-name-mikrotik)), preferably inside tmux |
 
 Both machines need the same `ROS_DOMAIN_ID`, `TURTLEBOT3_MODEL` and `RMW_IMPLEMENTATION` (see [Common settings](../README.md#common-settings)). The installer writes them to `~/.bashrc`.
 
