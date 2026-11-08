@@ -1,10 +1,15 @@
-"""SLAM + Nav2 + frontier explorer. Run on the PC; the robot (or Gazebo) provides /scan, /odom and TF."""
+"""SLAM + Nav2 + frontier explorer. Run on the PC; the robot (or Gazebo) provides /scan, /odom and TF.
+
+With slam:=false only Nav2 and the explorer start and continue the map of a slam_toolbox that already
+runs, for example after mapping part of a room by hand (mapping.sh explore).
+"""
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -39,6 +44,8 @@ def generate_launch_description():
                               description='true when running against Gazebo'),
         DeclareLaunchArgument('max_speed', default_value='0.18',
                               description='Top speed [m/s]; the Burger reaches 0.22, slower gives SLAM a better map'),
+        DeclareLaunchArgument('slam', default_value='true',
+                              description='false: use a slam_toolbox that already runs (keeps its map)'),
         DeclareLaunchArgument('explorer_params',
                               default_value=os.path.join(mapper, 'config', 'explorer.yaml')),
         DeclareLaunchArgument('slam_params',
@@ -46,6 +53,7 @@ def generate_launch_description():
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(slam, 'launch', 'online_async_launch.py')),
+            condition=IfCondition(LaunchConfiguration('slam')),
             launch_arguments={'use_sim_time': use_sim_time,
                               'slam_params_file': LaunchConfiguration('slam_params')}.items()),
 

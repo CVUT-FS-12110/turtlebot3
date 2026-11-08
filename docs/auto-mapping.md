@@ -38,6 +38,19 @@ source install/setup.bash
 ~/turtlebot3-setup/scripts/mapping.sh --sim      # against Gazebo (add use_sim_time)
 ```
 
+### Switching between manual and automatic
+
+A running manual session (with or without `--gamepad`) can hand the robot to Nav2 and the explorer and take it back. SLAM keeps running in the `slam_toolbox` pane, so the map built so far is kept both ways. For example, drive through a narrow door by hand and let the robot finish the room on its own:
+
+```bash
+~/turtlebot3-setup/scripts/mapping.sh explore   # stops the keyboard teleop, starts Nav2 + explorer in window "explore"
+~/turtlebot3-setup/scripts/mapping.sh drive     # stops them (the robot halts) and starts the keyboard teleop again
+```
+
+`explore` starts `auto_mapper.launch.py slam:=false`, which uses the running SLAM instead of starting a second one. The explorer begins with its turn in place and explores from the current map. With the gamepad, keep your hands off it while exploring: holding the enable button would fight Nav2.
+
+Switching needs a session started by this version of `mapping.sh`. `mapping.sh auto` does not need it: it runs everything from the start. Switching `manual` ↔ `auto` with `--restart` starts a new SLAM and loses the map.
+
 RViz opens with [`auto_mapper/config/mapping.rviz`](../auto_mapper/config/mapping.rviz) in manual mode (map, `/scan`, robot model, TF; the LiDAR is subscribed as best effort, which is how it publishes) and with the Nav2 view in `auto` mode. The Nav2 view is not used by hand, because its panel keeps printing `controller_server service not available` while Nav2 does not run.
 
 The status bar of the session shows the robot's battery voltage ([battery-status.md](battery-status.md#pc-wsl2)); yellow below 11.0 V, red below 10.5 V (stop driving).
@@ -85,7 +98,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/room
 | `settle_time` | 3 s | Wait after a goal before judging it (the map updates every 2 s) |
 | `finish_after_empty_ticks` | 5 | Ticks without a frontier before the map is saved |
 
-Launch arguments of `auto_mapper.launch.py`: `use_sim_time`, `max_speed` (0.18 m/s), `explorer_params`, `slam_params`.
+Launch arguments of `auto_mapper.launch.py`: `use_sim_time`, `max_speed` (0.18 m/s), `slam` (`false` uses a SLAM that already runs), `explorer_params`, `slam_params`.
 
 ## Tests
 
